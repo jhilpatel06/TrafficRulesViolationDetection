@@ -1,0 +1,34 @@
+# backend/configs/wrong_way.yaml
+
+wrong_way:
+  enabled: true
+
+  tracking:
+    max_history: 50
+    transition_frames: 3
+
+  trajectory:
+    ema_alpha: 0.3
+    min_displacement: 10.0
+
+  direction:
+    dot_threshold: -0.3
+
+  verification:
+    persistence_frames: 10
+
+  camera:
+    camera_id: "camera_01"
+
+    lanes:
+      - lane_id: "lane_1"
+        # lane region
+        polygon:
+          - [100, 200]
+          - [500, 200]
+          - [550, 700]
+          - [50, 700]
+
+        direction:
+          start: [100, 700]
+          end: [500, 200]
