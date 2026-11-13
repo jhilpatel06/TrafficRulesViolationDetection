@@ -1,5 +1,10 @@
 # backend/src/wrong_way/lane_regions.py
-"""Load CVAT polygon tracks and assign tracked vehicle points to road regions."""
+#--------------------------------------------------------------------------------
+# Loading CVAT polygon annotations.
+# Identifying the road region containing a vehicle.
+# Determining the expected direction of movement.
+# Supporting wrong-way violation detection.
+
 from pathlib import Path
 import xml.etree.ElementTree as ET
 import cv2
