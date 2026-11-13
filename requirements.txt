@@ -13,3 +13,4 @@ setuptools==80.9.0
 torchvision
 matplotlib
 seaborn
+ruamel.yaml

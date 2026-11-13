@@ -19,7 +19,7 @@ from src.utils.helper import load_config
 ROOT = Path(__file__).resolve().parents[1]
 
 EXPERIMENT_DIR = ROOT / "experiments"
-CSV_PATH = EXPERIMENT_DIR / "experiment_configs.csv"
+CSV_PATH = EXPERIMENT_DIR / "_experiment_configs.csv"
 yolov5_repo = ROOT / "yolov5"
 weights = yolov5_repo / "my_coco.pt"
 video = load_config()["video_path"]
@@ -91,7 +91,7 @@ def get_experiment_video_path(config):
     if not safe_name:
         safe_name = "experiment"
 
-    filename = f"{safe_name}_{timestamp}.mp4"
+    filename = f"{safe_name}.mp4"
 
     EXPERIMENT_DIR.mkdir(parents=True, exist_ok=True)
 

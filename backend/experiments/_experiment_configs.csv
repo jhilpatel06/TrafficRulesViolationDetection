@@ -1,0 +1,8 @@
+exp_name,lane_right,lane_left,hist_window,min_disp,dir_thresh,req_frames,conf,iou,max_disappeared,max_distance
+,"[0, -1]","[0, 1]",8,25,-0.5,3,0.25,0.45,10,80
+traj_smoothing_10_30_n0d3_5,"[0, -5]","[0, 5]",10,30,-0.3,5,0.25,0.45,10,80
+bottom_center_bb_anchor,"[0, -5]","[0, 5]",10,30,-0.3,5,0.25,0.45,10,80
+min_60_frame_displacment,"[0, -1]","[0, 1]",10,60,-0.3,5,0.25,0.45,10,80
+more_right_lane_polygon,"[0, -1]","[0, 1]",10,60,-0.3,5,0.25,0.45,10,80
+dir_th_n0d5,"[0, -1]","[0, 1]",10,60,-0.5,5,0.25,0.45,10,80
+centroid_y_from_yby2,"[0, -1]","[0, 1]",10,60,-0.5,5,0.25,0.45,10,80

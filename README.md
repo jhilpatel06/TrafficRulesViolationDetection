@@ -6,6 +6,6 @@
 
   ```powershell
   cd backend
-  python -W ignore -m scripts.run_detection_tracking
+  python -W ignore -m scripts.run_pipeline
   ```
 -

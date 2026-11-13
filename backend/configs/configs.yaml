@@ -5,27 +5,31 @@ lane_directions:
   frame_height: 720
 
   lanes:
-    - id: right
-      polygon:
-        - [100, 100]
-        - [600, 100]
-        - [600, 720]
-        - [100, 720]
-      direction: [0, -1] # upward direction
+  - id: right
+    polygon:
+    - [79, 1070]
+    - [493, 404]
+    - [748, 0]
+    - [981, 4]
+    - [1261, 202]
+    - [1908, 744]
+    - [1908, 1065]
+    direction: [0, -1]   # upward direction
 
-    - id: left
-      polygon:
-        - [680, 100]
-        - [1180, 100]
-        - [1180, 720]
-        - [680, 720]
-      direction: [0, 1] # downward direction
+  - id: left
+    polygon:
+    - [6, 1068]
+    - [70, 1063]
+    - [740, 1]
+    - [546, 0]
+    - [4, 277]
+    direction: [0, 1]   # downward direction
 
 wrong_way_detector_config: # dictionary of items
-  history_window: 8
-  min_displacement: 25 
+  history_window: 10
+  min_displacement: 60
   direction_threshold: -0.5
-  required_consecutive_frames: 3
+  required_consecutive_frames: 5
 
 detector_config:
   confidence: 0.25
@@ -36,5 +40,5 @@ tracker_config:
   max_disappeared: 10
   max_distance: 80
 
-video_path: "data/videos/traffic.mp4"
-experiment_name: ""
+video_path: "data/videos/traffic_short.mp4"
+experiment_name: "centroid_y_from_yby2"

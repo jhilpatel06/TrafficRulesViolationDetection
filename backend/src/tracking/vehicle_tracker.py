@@ -35,11 +35,11 @@ class VehicleTracker:
 
     @staticmethod
     def _get_centroid(bbox):
-        x1, y1, x2, y2 = bbox
+        x1, _, x2, y2 = bbox
 
         return (
             int((x1 + x2) / 2),
-            int((y1 + y2) / 2),
+            int(y2),
         )
 
     def _register(self, detection):

@@ -1,7 +1,5 @@
 # backend/src/wrong_way/wrong_way_detector.py
 
-from networkx import config
-import yaml
 import numpy as np
 
 from src.wrong_way.lane_regions import LaneRegions
@@ -11,10 +9,10 @@ from src.utils.helper import load_config
 class WrongWayDetector:
     def __init__(
         self,
-        history_window=8,
-        min_displacement=25,
-        direction_threshold=-0.5,
-        required_consecutive_frames=3
+        history_window=int,       
+        min_displacement=int,     
+        direction_threshold=int,
+        required_consecutive_frames=int
     ):
         direction_config = load_config()["lane_directions"]
         self.lane_regions = LaneRegions(direction_config["lanes"])
@@ -32,7 +30,6 @@ class WrongWayDetector:
 
         for track in tracks:
             track_id = track.track_id
-
             lane = self.lane_regions.get_lane(track.bbox)
 
             if lane is None:
@@ -41,32 +38,34 @@ class WrongWayDetector:
 
             history = track.history
 
-            if len(history) < 2:
+            # Wait until we have enough history to make a smooth calculation
+            if len(history) < self.history_window:
                 continue
 
-            # Compare recent positions
             recent = history[-self.history_window:]
 
-            start = np.array(recent[0], dtype=float)
-            end = np.array(recent[-1], dtype=float)
+            # --- Trajectory Smoothing ---
+            # Average the first 3 frames and last 3 frames of the window.
+            # This completely eliminates false positives from 1-frame box wiggles.
+            smooth_window = max(2, self.history_window // 3)
+            start = np.mean(np.array(recent[:smooth_window], dtype=float), axis=0)
+            end = np.mean(np.array(recent[-smooth_window:], dtype=float), axis=0)
 
             movement = end - start
-
             distance = np.linalg.norm(movement)
 
+            # --- Stationary Vehicle Handling ---
             if distance < self.min_displacement:
+                # If they aren't moving enough, they can't be going the wrong way.
+                # Reset the count so stopped cars don't randomly trigger alarms.
+                self.violation_counts[track_id] = 0
                 continue
 
             movement = movement / distance
-
-            permitted = np.array(
-                lane["direction"],
-                dtype=float
-            )
-
+            permitted = np.array(lane["direction"], dtype=float)
             permitted = permitted / np.linalg.norm(permitted)
 
-            # Negative value means movement opposes lane direction
+            # Calculate alignment (1.0 = perfect match, -1.0 = perfect wrong way)
             alignment = float(np.dot(movement, permitted))
 
             if alignment < self.direction_threshold:
@@ -76,12 +75,9 @@ class WrongWayDetector:
             else:
                 self.violation_counts[track_id] = 0
 
-            if (
-                self.violation_counts.get(track_id, 0)
-                >= self.required_consecutive_frames
-            ):
+            # Only flag if the violation persists for required consecutive frames
+            if self.violation_counts.get(track_id, 0) >= self.required_consecutive_frames:
                 current_wrong_way_ids.add(track_id)
 
         self.wrong_way_ids = current_wrong_way_ids
-
         return current_wrong_way_ids
