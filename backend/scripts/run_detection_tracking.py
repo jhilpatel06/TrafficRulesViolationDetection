@@ -1,9 +1,12 @@
 # backend/src/wrong_way/run_detection_tracking.py
 #-------------------------------------------------------------------------------
 
-
-import argparse
 import cv2
+from pathlib import Path
+import csv
+import json
+import re
+from datetime import datetime
 from pathlib import Path
 
 from src.detection.vehicle_detector import VehicleDetector
@@ -14,10 +17,85 @@ from src.utils.helper import load_config
 
 # Project paths
 ROOT = Path(__file__).resolve().parents[1]
+
+EXPERIMENT_DIR = ROOT / "experiments"
+CSV_PATH = EXPERIMENT_DIR / "experiment_configs.csv"
 yolov5_repo = ROOT / "yolov5"
 weights = yolov5_repo / "my_coco.pt"
 video = load_config()["video_path"]
 
+def save_experiment_config(config):
+    EXPERIMENT_DIR.mkdir(parents=True, exist_ok=True)
+
+    lane_directions = {
+        lane["id"]: lane["direction"]
+        for lane in config["lane_directions"]["lanes"]
+    }
+
+    wrong_way = config["wrong_way_detector_config"]
+    detector = config["detector_config"]
+    tracker = config["tracker_config"]
+
+    record = {
+        "exp_name": config.get("experiment_name", ""),
+        "lane_right": json.dumps(lane_directions.get("right", [])),
+        "lane_left": json.dumps(lane_directions.get("left", [])),
+        "hist_window": wrong_way["history_window"],
+        "min_disp": wrong_way["min_displacement"],
+        "dir_thresh": wrong_way["direction_threshold"],
+        "req_frames": wrong_way["required_consecutive_frames"],
+        "conf": detector["confidence"],
+        "iou": detector["iou"],
+        "max_disappeared": tracker["max_disappeared"],
+        "max_distance": tracker["max_distance"],
+    }
+
+    fieldnames = [
+        "exp_name",
+        "lane_right",
+        "lane_left",
+        "hist_window",
+        "min_disp",
+        "dir_thresh",
+        "req_frames",
+        "conf",
+        "iou",
+        "max_disappeared",
+        "max_distance",
+    ]
+
+    file_exists = CSV_PATH.exists()
+
+    with CSV_PATH.open("a", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+
+        if not file_exists or CSV_PATH.stat().st_size == 0:
+            writer.writeheader()
+
+        writer.writerow(record)
+
+def get_experiment_video_path(config):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+
+    experiment_name = config.get("experiment_name", "").strip()
+
+    if not experiment_name:
+        experiment_name = "experiment"
+
+    safe_name = re.sub(
+        r'[<>:"/\\|?*]',
+        "_",
+        experiment_name
+    ).strip(" .")
+
+    if not safe_name:
+        safe_name = "experiment"
+
+    filename = f"{safe_name}_{timestamp}.mp4"
+
+    EXPERIMENT_DIR.mkdir(parents=True, exist_ok=True)
+
+    return EXPERIMENT_DIR / filename
 
 def main():
 
@@ -42,15 +120,36 @@ def main():
     # Open video
     cap = cv2.VideoCapture(video)
 
+    output_video_path = get_experiment_video_path(config)
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+
+    writer = cv2.VideoWriter(
+        str(output_video_path),
+        fourcc,
+        fps,
+        (width, height)
+    )
+
     if not cap.isOpened():
         raise RuntimeError(f"Could not open video: {video}")
+
+    current_frame = 0
+    completed_successfully = False
 
     try:
         while True:
             ret, frame = cap.read()
 
             if not ret:
+                completed_successfully = True  # Add this line
                 break
+
+            current_frame += 1  # Add this line
 
             # Stage 1: Detect vehicles using the already-loaded model
             detections = detector.detect(frame)
@@ -65,12 +164,10 @@ def main():
 
                 if track.track_id in wrong_way_ids:
                     color = (0, 0, 255)
-                    status = "WRONG WAY"
+                    label = f"ID: {track.track_id} | WRONG WAY"
                 else:
                     color = (0, 255, 0)
-                    status = "NORMAL"
-
-                label = f"ID: {track.track_id} | {status}"
+                    label = f"ID: {track.track_id}"
 
                 cv2.rectangle(
                     frame, (x1, y1), (x2, y2), color, 2
@@ -87,13 +184,21 @@ def main():
                 )
 
             cv2.imshow("Vehicle Detection and Tracking", frame)
+            writer.write(frame)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
-
     finally:
         cap.release()
+        writer.release()  # Add this line to unlock the video file
         cv2.destroyAllWindows()
+
+        # Replace your single save_experiment_config(config) line with this block:
+        if completed_successfully:
+            save_experiment_config(config)
+        else:
+            if output_video_path.exists():
+                output_video_path.unlink()
 
 
 if __name__ == "__main__":
