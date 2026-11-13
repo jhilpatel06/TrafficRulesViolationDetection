@@ -75,8 +75,6 @@ def save_experiment_config(config):
         writer.writerow(record)
 
 def get_experiment_video_path(config):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-
     experiment_name = config.get("experiment_name", "").strip()
 
     if not experiment_name:
@@ -119,10 +117,22 @@ def main():
 
     # Open video
     cap = cv2.VideoCapture(video)
+    if not cap.isOpened():
+        raise RuntimeError(f"Could not open video: {video}")
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    print(f"total frames in video: {total_frames}")
+    print(f"fps: {cap.get(cv2.CAP_PROP_FPS)}")
 
     output_video_path = get_experiment_video_path(config)
 
     fps = cap.get(cv2.CAP_PROP_FPS)
+    if not fps or fps != fps or fps < 5 or fps > 240:
+        print(f"[WARN] bad source fps ({fps!r}), defaulting to 30.0")
+        fps = 30.0
+    else:
+        fps = round(fps)
+
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
@@ -134,13 +144,19 @@ def main():
         fps,
         (width, height)
     )
+    if not writer.isOpened():
+        raise RuntimeError(
+            f"VideoWriter failed: {output_video_path}  "
+            f"fourcc={fourcc} fps={fps} size=({width},{height})"
+        )
 
-    # --- debug artifacts (change 4) ---
+    print("frame size:", width, "x", height)
+
     debug_video_path = output_video_path.with_name(
-        output_video_path.stem + ".mp4"
+        output_video_path.stem + "_debug.mp4"
     )
     debug_csv_path = output_video_path.with_name(
-        output_video_path.stem + "_debug_anchors.csv"
+        output_video_path.stem + "_debug.csv"
     )
     debug_writer = cv2.VideoWriter(
         str(debug_video_path),
@@ -148,10 +164,13 @@ def main():
         fps,
         (width, height),
     )
+    if not debug_writer.isOpened():
+        raise RuntimeError(
+            f"VideoWriter failed: {debug_video_path}  "
+            f"fourcc={fourcc} fps={fps} size=({width},{height})"
+        )
+    
     debug_csv_rows = []
-
-    if not cap.isOpened():
-        raise RuntimeError(f"Could not open video: {video}")
 
     current_frame = 0
     completed_successfully = False
@@ -170,10 +189,6 @@ def main():
             detections = detector.detect(frame)
 
             # Stage 2: Assign persistent IDs
-            tracks = tracker.update(detections)
-            wrong_way_ids = wrong_way_detector.update(tracks)
-
-                        # Stage 2: Assign persistent IDs
             tracks = tracker.update(detections)
             wrong_way_ids = wrong_way_detector.update(tracks)
 
@@ -230,17 +245,6 @@ def main():
                 )
                 csv_writer.writeheader()
                 csv_writer.writerows(debug_csv_rows)
-
-        if completed_successfully:
-            save_experiment_config(config)
-        else:
-            if output_video_path.exists():
-                output_video_path.unlink()
-            # also drop partial debug artifacts on failure
-            if debug_video_path.exists():
-                debug_video_path.unlink()
-            if debug_csv_path.exists():
-                debug_csv_path.unlink()
 
         # Replace your single save_experiment_config(config) line with this block:
         if completed_successfully:

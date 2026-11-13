@@ -27,7 +27,7 @@ lane_directions:
 
 wrong_way_detector_config: # dictionary of items
   history_window: 10
-  min_displacement: 60
+  min_displacement: 8
   direction_threshold: -0.5
   required_consecutive_frames: 5
 
@@ -41,4 +41,4 @@ tracker_config:
   max_distance: 80
 
 video_path: "data/videos/traffic_short.mp4"
-experiment_name: "debug_visualize"
+experiment_name: "vis_min_dis_10"

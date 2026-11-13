@@ -10,10 +10,10 @@ from src.utils.helper import load_config
 class WrongWayDetector:
     def __init__(
         self,
-        history_window=int,       
-        min_displacement=int,     
-        direction_threshold=int,
-        required_consecutive_frames=int
+        history_window: int,       
+        min_displacement: int,     
+        direction_threshold: float,
+        required_consecutive_frames: int
     ):
         direction_config = load_config()["lane_directions"]
         self.lanes_cfg = direction_config["lanes"] 
@@ -26,17 +26,32 @@ class WrongWayDetector:
 
         self.violation_counts = {}
         self.wrong_way_ids = set()
+        self._last_lane = {}
+
 
     def update(self, tracks):
+        active_ids = {t.track_id for t in tracks}
+        for dead_id in list(self.violation_counts):
+            if dead_id not in active_ids:
+                del self.violation_counts[dead_id]
+                self._last_lane.pop(dead_id, None) 
+
         current_wrong_way_ids = set()
 
         for track in tracks:
+            if getattr(track, "disappeared", 0) > 0:   # skip stale tracks
+                continue
+
             track_id = track.track_id
             lane = self.lane_regions.get_lane(track.bbox)
 
             if lane is None:
-                self.violation_counts[track_id] = 0
-                continue
+                lane = self._last_lane.get(track_id)      # keep last known lane
+                if lane is None:
+                    self.violation_counts[track_id] = 0
+                    continue
+            else:
+                self._last_lane[track_id] = lane
 
             history = track.history
 
