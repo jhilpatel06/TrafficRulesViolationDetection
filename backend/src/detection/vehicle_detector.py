@@ -15,7 +15,7 @@ class VehicleDetector:
         iou: float = 0.45,
         image_size: int = 640,
         vehicle_class_ids: list[int] | None = None,
-        device: str = "",
+        device: str = "cpu",
     ):
         """
         weights: path to your trained .pt weights
@@ -43,7 +43,7 @@ class VehicleDetector:
 
         self.model.conf = confidence
         self.model.iou = iou
-        self.model.to(device if device else "cpu")
+        self.model.to(device)
 
         self.image_size = image_size
         self.vehicle_class_ids = (

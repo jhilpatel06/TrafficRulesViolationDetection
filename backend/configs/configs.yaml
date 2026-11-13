@@ -1,0 +1,39 @@
+# backend/configs/configs.yaml
+
+lane_directions:
+  frame_width: 1280
+  frame_height: 720
+
+  lanes:
+    - id: lane_1
+      polygon:
+        - [100, 100]
+        - [600, 100]
+        - [600, 720]
+        - [100, 720]
+      direction: [0, -1] # upward direction
+
+    - id: lane_2
+      polygon:
+        - [680, 100]
+        - [1180, 100]
+        - [1180, 720]
+        - [680, 720]
+      direction: [0, 1] # downward direction
+
+wrong_way_detector_config: # dictionary of items
+  history_window: 8
+  min_displacement: 25 
+  direction_threshold: -0.5
+  required_consecutive_frames: 3
+
+detector_config:
+  confidence: 0.25
+  iou: 0.45
+  device: cpu # cpu/cuda
+
+tracker_config:
+  max_disappeared: 10
+  max_distance: 80
+
+video_path: "data/videos/traffic.mp4"

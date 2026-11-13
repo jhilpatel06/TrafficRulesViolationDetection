@@ -1,0 +1,15 @@
+pytest
+PyYAML
+opencv-python
+# refernce
+numpy
+torch
+scipy
+pandas
+requests
+Pillow
+tqdm
+setuptools==80.9.0
+torchvision
+matplotlib
+seaborn
