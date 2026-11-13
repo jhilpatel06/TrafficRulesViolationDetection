@@ -152,25 +152,25 @@ def main():
 
     print("frame size:", width, "x", height)
 
-    debug_video_path = output_video_path.with_name(
-        output_video_path.stem + "_debug.mp4"
-    )
-    debug_csv_path = output_video_path.with_name(
-        output_video_path.stem + "_debug.csv"
-    )
-    debug_writer = cv2.VideoWriter(
-        str(debug_video_path),
-        fourcc,
-        fps,
-        (width, height),
-    )
-    if not debug_writer.isOpened():
-        raise RuntimeError(
-            f"VideoWriter failed: {debug_video_path}  "
-            f"fourcc={fourcc} fps={fps} size=({width},{height})"
-        )
+    # debug_video_path = output_video_path.with_name(
+    #     output_video_path.stem + "_debug.mp4"
+    # )
+    # debug_csv_path = output_video_path.with_name(
+    #     output_video_path.stem + "_debug.csv"
+    # )
+    # debug_writer = cv2.VideoWriter(
+    #     str(debug_video_path),
+    #     fourcc,
+    #     fps,
+    #     (width, height),
+    # )
+    # if not debug_writer.isOpened():
+    #     raise RuntimeError(
+    #         f"VideoWriter failed: {debug_video_path}  "
+    #         f"fourcc={fourcc} fps={fps} size=({width},{height})"
+    #     )
     
-    debug_csv_rows = []
+    # debug_csv_rows = []
 
     current_frame = 0
     completed_successfully = False
@@ -192,14 +192,14 @@ def main():
             tracks = tracker.update(detections)
             wrong_way_ids = wrong_way_detector.update(tracks)
 
-            # --- debug overlay (change 4) ---
-            debug_frame = wrong_way_detector.debug_visualize(
-                frame,
-                tracks,
-                frame_idx=current_frame,
-                csv_rows=debug_csv_rows,
-            )
-            debug_writer.write(debug_frame)
+            # # --- debug overlay (change 4) ---
+            # debug_frame = wrong_way_detector.debug_visualize(
+            #     frame,
+            #     tracks,
+            #     frame_idx=current_frame,
+            #     csv_rows=debug_csv_rows,
+            # )
+            # debug_writer.write(debug_frame)
 
             # Stage 3: Visualize
             for track in tracks:
@@ -234,17 +234,17 @@ def main():
     finally:
         cap.release()
         writer.release()
-        debug_writer.release()                      # NEW
+        # debug_writer.release()                  
         cv2.destroyAllWindows()
 
-        # NEW: dump the per-frame debug CSV
-        if debug_csv_rows:
-            with debug_csv_path.open("w", newline="", encoding="utf-8") as f:
-                csv_writer = csv.DictWriter(
-                    f, fieldnames=list(debug_csv_rows[0].keys())
-                )
-                csv_writer.writeheader()
-                csv_writer.writerows(debug_csv_rows)
+        # # NEW: dump the per-frame debug CSV
+        # if debug_csv_rows:
+        #     with debug_csv_path.open("w", newline="", encoding="utf-8") as f:
+        #         csv_writer = csv.DictWriter(
+        #             f, fieldnames=list(debug_csv_rows[0].keys())
+        #         )
+        #         csv_writer.writeheader()
+        #         csv_writer.writerows(debug_csv_rows)
 
         # Replace your single save_experiment_config(config) line with this block:
         if completed_successfully:

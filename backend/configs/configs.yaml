@@ -26,10 +26,10 @@ lane_directions:
     direction: [0, 1]   # downward direction
 
 wrong_way_detector_config: # dictionary of items
-  history_window: 10
-  min_displacement: 8
-  direction_threshold: -0.5
-  required_consecutive_frames: 5
+  history_window: 7
+  min_displacement: 7
+  direction_threshold: 0
+  required_consecutive_frames: 3
 
 detector_config:
   confidence: 0.25
@@ -41,4 +41,4 @@ tracker_config:
   max_distance: 80
 
 video_path: "data/videos/traffic_short.mp4"
-experiment_name: "vis_min_dis_10"
+experiment_name: "perpendicular_7_7_0_3"
