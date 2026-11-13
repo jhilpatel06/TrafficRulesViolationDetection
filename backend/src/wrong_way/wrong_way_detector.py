@@ -3,6 +3,7 @@
 import numpy as np
 
 from src.wrong_way.lane_regions import LaneRegions
+from src.wrong_way.visualize_debug import annotate_frame
 from src.utils.helper import load_config
 
 
@@ -15,6 +16,7 @@ class WrongWayDetector:
         required_consecutive_frames=int
     ):
         direction_config = load_config()["lane_directions"]
+        self.lanes_cfg = direction_config["lanes"] 
         self.lane_regions = LaneRegions(direction_config["lanes"])
 
         self.history_window = history_window
@@ -81,3 +83,32 @@ class WrongWayDetector:
 
         self.wrong_way_ids = current_wrong_way_ids
         return current_wrong_way_ids
+
+    def debug_visualize(self, frame, tracks, frame_idx=0, csv_rows=None):
+        """Return a copy of `frame` annotated with lane polygons, centroids,
+        bottom-center anchors, and per-track lane membership.
+
+        Purely diagnostic — does not touch `violation_counts` or `wrong_way_ids`.
+
+        Parameters
+        ----------
+        frame : np.ndarray
+            BGR frame read from the video.
+        tracks : list
+            The same track list that was passed to `update(tracks)`.
+        frame_idx : int
+            Frame counter (used in the debug CSV).
+        csv_rows : list | None
+            If provided, per-track rows are appended to it. Pass the same list
+            across all frames, then write it to disk at the end.
+        """
+        if csv_rows is None:
+            csv_rows = []
+        return annotate_frame(
+            frame,
+            tracks,
+            self.lane_regions,
+            self.lanes_cfg,
+            frame_idx,
+            csv_rows,
+        )

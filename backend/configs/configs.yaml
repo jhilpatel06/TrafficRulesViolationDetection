@@ -41,4 +41,4 @@ tracker_config:
   max_distance: 80
 
 video_path: "data/videos/traffic_short.mp4"
-experiment_name: "centroid_y_from_yby2"
+experiment_name: "debug_visualize"

@@ -1,4 +1,4 @@
-# backend/src/wrong_way/run_detection_tracking.py
+# backend/src/wrong_way/run_pipeline.py
 #-------------------------------------------------------------------------------
 
 import cv2
@@ -135,6 +135,21 @@ def main():
         (width, height)
     )
 
+    # --- debug artifacts (change 4) ---
+    debug_video_path = output_video_path.with_name(
+        output_video_path.stem + ".mp4"
+    )
+    debug_csv_path = output_video_path.with_name(
+        output_video_path.stem + "_debug_anchors.csv"
+    )
+    debug_writer = cv2.VideoWriter(
+        str(debug_video_path),
+        fourcc,
+        fps,
+        (width, height),
+    )
+    debug_csv_rows = []
+
     if not cap.isOpened():
         raise RuntimeError(f"Could not open video: {video}")
 
@@ -157,6 +172,19 @@ def main():
             # Stage 2: Assign persistent IDs
             tracks = tracker.update(detections)
             wrong_way_ids = wrong_way_detector.update(tracks)
+
+                        # Stage 2: Assign persistent IDs
+            tracks = tracker.update(detections)
+            wrong_way_ids = wrong_way_detector.update(tracks)
+
+            # --- debug overlay (change 4) ---
+            debug_frame = wrong_way_detector.debug_visualize(
+                frame,
+                tracks,
+                frame_idx=current_frame,
+                csv_rows=debug_csv_rows,
+            )
+            debug_writer.write(debug_frame)
 
             # Stage 3: Visualize
             for track in tracks:
@@ -190,8 +218,29 @@ def main():
                 break
     finally:
         cap.release()
-        writer.release()  # Add this line to unlock the video file
+        writer.release()
+        debug_writer.release()                      # NEW
         cv2.destroyAllWindows()
+
+        # NEW: dump the per-frame debug CSV
+        if debug_csv_rows:
+            with debug_csv_path.open("w", newline="", encoding="utf-8") as f:
+                csv_writer = csv.DictWriter(
+                    f, fieldnames=list(debug_csv_rows[0].keys())
+                )
+                csv_writer.writeheader()
+                csv_writer.writerows(debug_csv_rows)
+
+        if completed_successfully:
+            save_experiment_config(config)
+        else:
+            if output_video_path.exists():
+                output_video_path.unlink()
+            # also drop partial debug artifacts on failure
+            if debug_video_path.exists():
+                debug_video_path.unlink()
+            if debug_csv_path.exists():
+                debug_csv_path.unlink()
 
         # Replace your single save_experiment_config(config) line with this block:
         if completed_successfully:
