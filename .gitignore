@@ -1,6 +1,12 @@
+# Python environments and generated files
 venv/
 .venv/
-__pycache__/ 
-.cache/ 
-.pytest_cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cache/
+
+# Downloaded YOLO/model weights and generated inference output
 yolov5/
+no_helmet_detection/models/
+no_helmet_detection/outputs/
