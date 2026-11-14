@@ -1,4 +1,3 @@
-
 # Wrong-Way Vehicle Detection
 
 ## Project Brief

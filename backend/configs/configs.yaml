@@ -40,5 +40,5 @@ tracker_config:
   max_disappeared: 10
   max_distance: 80
 
-video_path: "data/videos/traffic_short.mp4"
-experiment_name: "perpendicular_7_7_0_3"
+video_path: "data/videos/traffic.mp4"
+experiment_name: "perpendicular_long_7_7_0_3"
