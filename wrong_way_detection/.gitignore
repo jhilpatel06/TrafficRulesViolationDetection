@@ -4,6 +4,6 @@ __pycache__/
 .cache/ 
 .pytest_cache
 yolov5/
-*.pt
-experiments/
+backend/*.pt
+backend/experiments/
 data/
