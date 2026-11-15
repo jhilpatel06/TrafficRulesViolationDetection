@@ -16,8 +16,8 @@ from .geometry import (
     match_person_to_motorcycle,
     match_plate_to_motorcycle,
 )
-from .onnx_models import OnnxDetector
-from .tracking import MotorcycleTracker
+from .onnx_models import OnnxDetector, suppress_duplicates
+from .tracking import ObjectTracker
 
 
 HELMET_REPO = "Nqhia/helmet-detection"
@@ -122,6 +122,88 @@ def _clamp_box(
     return x1, y1, x2, y2
 
 
+def _person_context_box(
+    person: Detection, width: int, height: int
+) -> tuple[int, int, int, int]:
+    person_width = max(person.box[2] - person.box[0], 1.0)
+    person_height = max(person.box[3] - person.box[1], 1.0)
+    return (
+        max(0, int(person.box[0] - person_width * 3)),
+        max(0, int(person.box[1] - person_height * 0.25)),
+        min(width, int(person.box[2] + person_width * 3)),
+        min(height, int(person.box[3] + person_height * 1.25)),
+    )
+
+
+def _detect_person_heads(
+    detector: OnnxDetector,
+    frame: Any,
+    people: list[Detection],
+    confidence: float,
+) -> list[Detection]:
+    frame_height, frame_width = frame.shape[:2]
+    detections: list[Detection] = []
+    for person in people:
+        x1, y1, x2, y2 = _person_context_box(
+            person, frame_width, frame_height
+        )
+        if x1 >= x2 or y1 >= y2:
+            continue
+        for detection in detector.detect(frame[y1:y2, x1:x2], confidence):
+            detections.append(
+                Detection(
+                    box=(
+                        detection.box[0] + x1,
+                        detection.box[1] + y1,
+                        detection.box[2] + x1,
+                        detection.box[3] + y1,
+                    ),
+                    class_name=detection.class_name,
+                    confidence=detection.confidence,
+                )
+            )
+    return suppress_duplicates(detections)
+
+
+def _motorcycle_rider_candidates(
+    people: list[Detection],
+    motorcycles: list[Detection],
+) -> list[Detection]:
+    return [
+        person
+        for person in people
+        if match_person_to_motorcycle(person, motorcycles) is not None
+    ]
+
+
+def _associate_no_helmet_heads(
+    heads: list[Detection],
+    people: list[Detection],
+    motorcycles: list[Detection],
+) -> tuple[
+    dict[tuple[str, int], Detection],
+    dict[int, Detection],
+    set[int],
+    dict[int, int],
+]:
+    violation_subjects: dict[tuple[str, int], Detection] = {}
+    matched_people: dict[int, Detection] = {}
+    unmatched_people: set[int] = set()
+    motorcycle_by_person: dict[int, int] = {}
+    for head in heads:
+        person = match_head_to_person(head, people)
+        if person is None or person.track_id is None:
+            continue
+        matched_people[person.track_id] = person
+        motorcycle = match_person_to_motorcycle(person, motorcycles)
+        if motorcycle is None or motorcycle.track_id is None:
+            unmatched_people.add(person.track_id)
+            continue
+        motorcycle_by_person[person.track_id] = motorcycle.track_id
+        violation_subjects[("motorcycle", motorcycle.track_id)] = motorcycle
+    return violation_subjects, matched_people, unmatched_people, motorcycle_by_person
+
+
 def _draw_box(
     frame: Any,
     box: tuple[float, float, float, float],
@@ -130,16 +212,17 @@ def _draw_box(
 ) -> None:
     x1, y1, x2, y2 = (int(value) for value in box)
     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-    cv2.putText(
-        frame,
-        label,
-        (x1, max(y1 - 8, 18)),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.55,
-        color,
-        2,
-        cv2.LINE_AA,
-    )
+    if label:
+        cv2.putText(
+            frame,
+            label,
+            (x1, max(y1 - 8, 18)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            color,
+            2,
+            cv2.LINE_AA,
+        )
 
 
 def _save_reports(
@@ -148,13 +231,16 @@ def _save_reports(
     source: Path,
     video_path: Path,
     ledger: EventLedger,
+    summary: dict[str, int],
+    frames_processed: int,
 ) -> tuple[Path, Path]:
     csv_path = output_dir / f"{stem}_violations.csv"
     json_path = output_dir / f"{stem}_violations.json"
     records = [event.as_dict() for event in ledger.confirmed_events]
 
     fieldnames = [
-        "motorcycle_track_id",
+        "subject_track_id",
+        "subject_type",
         "first_frame",
         "last_frame",
         "evidence_frames",
@@ -171,6 +257,8 @@ def _save_reports(
         "annotated_video": str(video_path),
         "event_count": len(records),
         "events": records,
+        "frames_processed": frames_processed,
+        "detection_summary": summary,
         "model_sources": {
             "helmet_no_helmet": f"https://github.com/{HELMET_REPO}/tree/{HELMET_COMMIT}/models",
             "license_plate": (
@@ -179,6 +267,7 @@ def _save_reports(
             "person_motorcycle": (
                 f"https://huggingface.co/{COCO_REPO}/tree/{COCO_REVISION}"
             ),
+            "helmet_inference": "Per-person context crops",
         },
         "notice": (
             "ANPR reads are best-effort OCR results and require human verification. "
@@ -276,9 +365,21 @@ def run_video(
         raise RuntimeError(f"Could not create output video: {video_path}")
 
     ledger = EventLedger(min_violation_frames, persistence_gap)
-    tracker = MotorcycleTracker(max_gap=persistence_gap)
+    person_tracker = ObjectTracker(max_gap=persistence_gap)
+    motorcycle_tracker = ObjectTracker(max_gap=persistence_gap)
     frame_number = 0
-    last_ocr_frame: dict[int, int] = {}
+    last_ocr_frame: dict[tuple[str, int], int] = {}
+    summary = {
+        "helmet_detections": 0,
+        "no_helmet_detections": 0,
+        "person_detections": 0,
+        "motorcycle_detections": 0,
+        "plate_detections": 0,
+        "no_helmet_person_matches": 0,
+        "unmatched_no_helmet_people": 0,
+        "no_helmet_motorcycle_matches": 0,
+        "frames_with_any_detection": 0,
+    }
     try:
         while True:
             read_ok, frame = cap.read()
@@ -286,24 +387,20 @@ def run_video(
                 break
             frame_number += 1
 
-            helmet_detections = helmet_detector.detect(frame, confidence)
-            no_helmet_heads = [
-                detection
-                for detection in helmet_detections
-                if _helmet_kind(detection.class_name) == "no_helmet"
-            ]
-
-            vehicle_detections = vehicle_detector.detect(
+            vehicle_detections = vehicle_detector.detect_quadrants(
                 frame,
                 confidence,
                 class_ids=COCO_CLASS_NAMES,
             )
-            people = [
-                detection
-                for detection in vehicle_detections
-                if detection.class_name == "person"
-            ]
-            motorcycles = tracker.update(
+            people = person_tracker.update(
+                [
+                    detection
+                    for detection in vehicle_detections
+                    if detection.class_name == "person"
+                ],
+                frame_number,
+            )
+            motorcycles = motorcycle_tracker.update(
                 [
                     detection
                     for detection in vehicle_detections
@@ -311,78 +408,215 @@ def run_video(
                 ],
                 frame_number,
             )
-
-            plate_detections = plate_detector.detect(
+            rider_candidates = _motorcycle_rider_candidates(people, motorcycles)
+            helmet_detections = _detect_person_heads(
+                helmet_detector,
                 frame,
+                rider_candidates,
                 confidence,
-                class_ids=PLATE_CLASS_NAMES,
             )
+            no_helmet_heads = [
+                detection
+                for detection in helmet_detections
+                if _helmet_kind(detection.class_name) == "no_helmet"
+            ]
+
+            (
+                violation_subjects,
+                matched_people,
+                unmatched_no_helmet_people,
+                motorcycle_by_person,
+            ) = _associate_no_helmet_heads(
+                no_helmet_heads,
+                rider_candidates,
+                motorcycles,
+            )
+            plate_detections: list[Detection] = []
             plates_by_track: dict[int, Detection] = {}
-            for plate in plate_detections:
-                motorcycle = match_plate_to_motorcycle(plate, motorcycles)
-                if motorcycle is None or motorcycle.track_id is None:
-                    continue
-                existing = plates_by_track.get(motorcycle.track_id)
-                if existing is None or plate.confidence > existing.confidence:
-                    plates_by_track[motorcycle.track_id] = plate
+            if violation_subjects:
+                plate_detections = plate_detector.detect_tiled(
+                    frame,
+                    confidence,
+                    class_ids=PLATE_CLASS_NAMES,
+                )
+                for plate in plate_detections:
+                    motorcycle = match_plate_to_motorcycle(plate, motorcycles)
+                    if motorcycle is not None and motorcycle.track_id is not None:
+                        existing = plates_by_track.get(motorcycle.track_id)
+                        if existing is None or plate.confidence > existing.confidence:
+                            plates_by_track[motorcycle.track_id] = plate
 
-            violation_motorcycles: dict[int, Detection] = {}
-            for head in no_helmet_heads:
-                person = match_head_to_person(head, people)
-                if person is None:
-                    continue
-                motorcycle = match_person_to_motorcycle(person, motorcycles)
-                if motorcycle is not None and motorcycle.track_id is not None:
-                    violation_motorcycles[motorcycle.track_id] = motorcycle
-
-            confirmed_for_frame: dict[int, ViolationEvent] = {}
-            events_for_frame: dict[int, ViolationEvent] = {}
-            for track_id in violation_motorcycles:
+            confirmed_for_frame: set[tuple[str, int]] = set()
+            events_for_frame: dict[tuple[str, int], ViolationEvent] = {}
+            for subject_key in violation_subjects:
+                subject_type, track_id = subject_key
                 plate = plates_by_track.get(track_id)
                 plate_text = ""
                 plate_score = 0.0
                 if plate is not None and (
-                    track_id not in last_ocr_frame
-                    or frame_number - last_ocr_frame[track_id] >= ocr_interval
+                    subject_key not in last_ocr_frame
+                    or frame_number - last_ocr_frame[subject_key] >= ocr_interval
                 ):
                     plate_box = _clamp_box(plate.box, width, height)
                     plate_text, plate_score = _read_plate(ocr_reader, frame, plate_box)
                     plate_score *= plate.confidence
-                    last_ocr_frame[track_id] = frame_number
+                    last_ocr_frame[subject_key] = frame_number
 
                 event = ledger.update(
                     track_id,
                     frame_number,
                     plate_text=plate_text,
                     plate_confidence=plate_score,
+                    subject_type=subject_type,
                 )
-                events_for_frame[track_id] = event
+                events_for_frame[subject_key] = event
                 if event.evidence_frames >= min_violation_frames:
-                    confirmed_for_frame[track_id] = event
+                    confirmed_for_frame.add(subject_key)
+
+            helmet_status_by_person: dict[int, str] = {}
+            for head in helmet_detections:
+                kind = _helmet_kind(head.class_name)
+                if kind is not None:
+                    person = match_head_to_person(head, rider_candidates)
+                    if person is not None and person.track_id is not None:
+                        current_kind = helmet_status_by_person.get(person.track_id)
+                        if kind == "no_helmet" or current_kind is None:
+                            helmet_status_by_person[person.track_id] = kind
+                    motorcycle_id = (
+                        motorcycle_by_person.get(person.track_id)
+                        if person is not None and person.track_id is not None
+                        else None
+                    )
+                    subject_key = (
+                        ("motorcycle", motorcycle_id)
+                        if motorcycle_id is not None
+                        else None
+                    )
+                    if kind == "helmet":
+                        color = (0, 200, 0)
+                    elif subject_key in confirmed_for_frame:
+                        color = (0, 0, 255)
+                    else:
+                        color = (0, 165, 255)
+                    _draw_box(frame, head.box, "", color)
+
+            for person in people:
+                track_id = person.track_id
+                subject_key = ("person", track_id) if track_id is not None else None
+                motorcycle_id = (
+                    motorcycle_by_person.get(track_id)
+                    if track_id is not None
+                    else None
+                )
+                violation_key = (
+                    ("motorcycle", motorcycle_id)
+                    if motorcycle_id is not None
+                    else subject_key
+                )
+                if violation_key is not None and violation_key in events_for_frame:
+                    event = events_for_frame[violation_key]
+                    status = (
+                        "NO HELMET"
+                        if violation_key in confirmed_for_frame
+                        else f"CHECK {event.evidence_frames}/{min_violation_frames}"
+                    )
+                    label = f"{status} | Person ID {track_id} | {event.plate_text or 'plate unread'}"
+                    color = (
+                        (0, 0, 255)
+                        if violation_key in confirmed_for_frame
+                        else (0, 165, 255)
+                    )
+                elif track_id in unmatched_no_helmet_people:
+                    label = f"NO-HELMET CANDIDATE | NO BIKE MATCH | ID {track_id}"
+                    color = (0, 165, 255)
+                elif track_id in helmet_status_by_person and (
+                    helmet_status_by_person[track_id] == "helmet"
+                ):
+                    label = f"HELMET | Person {person.confidence:.2f} | ID {track_id}"
+                    color = (0, 200, 0)
+                else:
+                    label = f"Person {person.confidence:.2f} | ID {track_id}"
+                    color = (0, 165, 255) if track_id in matched_people else (255, 200, 0)
+                _draw_box(frame, person.box, label, color)
 
             for motorcycle in motorcycles:
                 track_id = motorcycle.track_id
-                if track_id not in violation_motorcycles:
-                    continue
-                event = events_for_frame[track_id]
-                status = (
-                    "NO HELMET"
-                    if track_id in confirmed_for_frame
-                    else f"CHECK {event.evidence_frames}/{min_violation_frames}"
-                )
-                plate_label = event.plate_text or "plate unread"
+                subject_key = ("motorcycle", track_id) if track_id is not None else None
+                if subject_key is not None and subject_key in events_for_frame:
+                    event = events_for_frame[subject_key]
+                    status = (
+                        "NO HELMET"
+                        if subject_key in confirmed_for_frame
+                        else f"CHECK {event.evidence_frames}/{min_violation_frames}"
+                    )
+                    plate_label = event.plate_text or "plate unread"
+                    color = (
+                        (0, 0, 255)
+                        if subject_key in confirmed_for_frame
+                        else (0, 165, 255)
+                    )
+                    label = f"{status} | ID {track_id} | {plate_label}"
+                else:
+                    color = (255, 0, 0)
+                    label = f"Motorcycle | ID {track_id} | {motorcycle.confidence:.2f}"
                 _draw_box(
                     frame,
                     motorcycle.box,
-                    f"{status} | ID {track_id} | {plate_label}",
-                    (0, 0, 255) if track_id in confirmed_for_frame else (0, 165, 255),
+                    label,
+                    color,
                 )
 
-            for head in no_helmet_heads:
-                _draw_box(frame, head.box, "No helmet", (0, 165, 255))
-            for track_id, plate in plates_by_track.items():
-                _draw_box(frame, plate.box, f"Plate | ID {track_id}", (255, 180, 0))
+            for plate in plate_detections:
+                motorcycle = match_plate_to_motorcycle(plate, motorcycles)
+                if motorcycle is not None:
+                    plate_label = f"Plate | Motorcycle ID {motorcycle.track_id}"
+                else:
+                    plate_label = "License plate"
+                _draw_box(frame, plate.box, plate_label, (255, 180, 0))
 
+            per_frame_counts = {
+                "helmet_detections": sum(
+                    _helmet_kind(detection.class_name) == "helmet"
+                    for detection in helmet_detections
+                ),
+                "no_helmet_detections": len(no_helmet_heads),
+                "person_detections": len(people),
+                "motorcycle_detections": len(motorcycles),
+                "plate_detections": len(plate_detections),
+                "no_helmet_person_matches": len(matched_people),
+                "unmatched_no_helmet_people": len(unmatched_no_helmet_people),
+                "no_helmet_motorcycle_matches": sum(
+                    subject_type == "motorcycle"
+                    for subject_type, _ in violation_subjects
+                ),
+            }
+            detected_this_frame = any(per_frame_counts.values())
+            if detected_this_frame:
+                summary["frames_with_any_detection"] += 1
+            for name, count in per_frame_counts.items():
+                summary[name] += count
+            if not detected_this_frame:
+                frame_status = "No objects detected"
+                status_color = (0, 0, 255)
+            else:
+                status_color = (0, 255, 255)
+                frame_status = (
+                    f"H:{per_frame_counts['helmet_detections']} "
+                    f"NH:{per_frame_counts['no_helmet_detections']} "
+                    f"P:{per_frame_counts['person_detections']} "
+                    f"M:{per_frame_counts['motorcycle_detections']} "
+                    f"PL:{per_frame_counts['plate_detections']}"
+                )
+            cv2.putText(
+                frame,
+                frame_status,
+                (16, 32),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.75,
+                status_color,
+                2,
+                cv2.LINE_AA,
+            )
             writer.write(frame)
             if show:
                 cv2.imshow("No-helmet detection + ANPR", frame)
@@ -395,9 +629,16 @@ def run_video(
             cv2.destroyAllWindows()
 
     csv_path, json_path = _save_reports(
-        output_dir, stem, source, video_path, ledger
+        output_dir,
+        stem,
+        source,
+        video_path,
+        ledger,
+        summary,
+        frame_number,
     )
     print(f"Annotated video: {video_path}")
     print(f"Violation CSV:   {csv_path}")
     print(f"Violation JSON:  {json_path}")
     print(f"Confirmed events: {len(ledger.confirmed_events)}")
+    print(f"Detection summary: {summary}")

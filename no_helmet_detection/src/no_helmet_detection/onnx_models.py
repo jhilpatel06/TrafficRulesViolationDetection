@@ -102,6 +102,35 @@ def _nms(
     return kept
 
 
+def suppress_duplicates(
+    detections: list[Detection], iou_threshold: float = 0.45
+) -> list[Detection]:
+    return _nms(detections, iou_threshold)
+
+
+def _tile_regions(width: int, height: int) -> list[tuple[int, int, int, int]]:
+    if width >= height:
+        tile_width = min(width, max(1, int(round(width * 0.55))))
+        x_starts = sorted({0, max(0, width - tile_width)})
+        return [(x, 0, min(width, x + tile_width), height) for x in x_starts]
+
+    tile_height = min(height, max(1, int(round(height * 0.55))))
+    y_starts = sorted({0, max(0, height - tile_height)})
+    return [(0, y, width, min(height, y + tile_height)) for y in y_starts]
+
+
+def _quadrant_regions(width: int, height: int) -> list[tuple[int, int, int, int]]:
+    tile_width = min(width, max(1, int(round(width * 0.52))))
+    tile_height = min(height, max(1, int(round(height * 0.52))))
+    x_starts = sorted({0, max(0, width - tile_width)})
+    y_starts = sorted({0, max(0, height - tile_height)})
+    return [
+        (x, y, min(width, x + tile_width), min(height, y + tile_height))
+        for y in y_starts
+        for x in x_starts
+    ]
+
+
 class OnnxDetector:
     def __init__(
         self,
@@ -156,6 +185,71 @@ class OnnxDetector:
             detections = self._decode_end_to_end(output, transform, confidence, selected_ids)
         else:
             detections = self._decode_yolo(output, transform, confidence, selected_ids)
+        return _nms(detections, iou_threshold=0.45)
+
+    def detect_tiled(
+        self,
+        frame: np.ndarray,
+        confidence: float,
+        class_ids: Iterable[int] | None = None,
+    ) -> list[Detection]:
+        height, width = frame.shape[:2]
+        if width <= self.input_width and height <= self.input_height:
+            return self.detect(frame, confidence, class_ids)
+        return self._detect_regions(
+            frame,
+            _tile_regions(width, height),
+            confidence,
+            class_ids,
+        )
+
+    def detect_quadrants(
+        self,
+        frame: np.ndarray,
+        confidence: float,
+        class_ids: Iterable[int] | None = None,
+    ) -> list[Detection]:
+        height, width = frame.shape[:2]
+        if width <= self.input_width and height <= self.input_height:
+            return self.detect(frame, confidence, class_ids)
+        return self._detect_regions(
+            frame,
+            _quadrant_regions(width, height),
+            confidence,
+            class_ids,
+        )
+
+    def _detect_regions(
+        self,
+        frame: np.ndarray,
+        regions: list[tuple[int, int, int, int]],
+        confidence: float,
+        class_ids: Iterable[int] | None,
+    ) -> list[Detection]:
+        if len(regions) <= 1:
+            return self.detect(frame, confidence, class_ids)
+
+        height, width = frame.shape[:2]
+        detections: list[Detection] = []
+        for x1, y1, x2, y2 in regions:
+            for detection in self.detect(
+                frame[y1:y2, x1:x2],
+                confidence,
+                class_ids,
+            ):
+                box = (
+                    max(0.0, min(float(width), detection.box[0] + x1)),
+                    max(0.0, min(float(height), detection.box[1] + y1)),
+                    max(0.0, min(float(width), detection.box[2] + x1)),
+                    max(0.0, min(float(height), detection.box[3] + y1)),
+                )
+                detections.append(
+                    Detection(
+                        box=box,
+                        class_name=detection.class_name,
+                        confidence=detection.confidence,
+                    )
+                )
         return _nms(detections, iou_threshold=0.45)
 
     def _decode_end_to_end(

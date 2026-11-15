@@ -5,7 +5,8 @@ from dataclasses import dataclass, field
 
 @dataclass
 class ViolationEvent:
-    motorcycle_track_id: int
+    subject_track_id: int
+    subject_type: str
     first_frame: int
     last_frame: int
     evidence_frames: int = 0
@@ -32,7 +33,8 @@ class ViolationEvent:
 
     def as_dict(self) -> dict[str, int | float | str]:
         return {
-            "motorcycle_track_id": self.motorcycle_track_id,
+            "subject_track_id": self.subject_track_id,
+            "subject_type": self.subject_type,
             "first_frame": self.first_frame,
             "last_frame": self.last_frame,
             "evidence_frames": self.evidence_frames,
@@ -50,23 +52,26 @@ class EventLedger:
         self.min_frames = min_frames
         self.persistence_gap = persistence_gap
         self.events: list[ViolationEvent] = []
-        self._active: dict[int, ViolationEvent] = {}
+        self._active: dict[tuple[str, int], ViolationEvent] = {}
 
     def update(
         self,
-        motorcycle_track_id: int,
+        subject_track_id: int,
         frame_number: int,
         plate_text: str = "",
         plate_confidence: float = 0.0,
+        subject_type: str = "motorcycle",
     ) -> ViolationEvent:
-        event = self._active.get(motorcycle_track_id)
+        subject_key = (subject_type, subject_track_id)
+        event = self._active.get(subject_key)
         if event is None or frame_number - event.last_frame > self.persistence_gap + 1:
             event = ViolationEvent(
-                motorcycle_track_id=motorcycle_track_id,
+                subject_track_id=subject_track_id,
+                subject_type=subject_type,
                 first_frame=frame_number,
                 last_frame=frame_number,
             )
-            self._active[motorcycle_track_id] = event
+            self._active[subject_key] = event
             self.events.append(event)
 
         event.last_frame = frame_number

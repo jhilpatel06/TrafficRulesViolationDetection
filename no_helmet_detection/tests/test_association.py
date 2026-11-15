@@ -29,3 +29,5 @@ def test_plate_far_from_all_motorcycles_is_not_associated() -> None:
     plate = Detection((150, 150, 180, 165), "license_plate", 0.85)
 
     assert match_plate_to_motorcycle(plate, [motorcycle]) is None
+
+

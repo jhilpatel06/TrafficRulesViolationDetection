@@ -12,7 +12,7 @@ def _iou(first: Box, second: Box) -> float:
     return intersection / union if union > 0 else 0.0
 
 
-class MotorcycleTracker:
+class ObjectTracker:
     def __init__(self, max_gap: int = 5) -> None:
         self.max_gap = max_gap
         self._next_id = 1

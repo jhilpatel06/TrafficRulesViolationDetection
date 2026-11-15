@@ -1,9 +1,9 @@
 from src.no_helmet_detection.geometry import Detection
-from src.no_helmet_detection.tracking import MotorcycleTracker
+from src.no_helmet_detection.tracking import ObjectTracker
 
 
 def test_tracker_keeps_id_for_a_moving_motorcycle() -> None:
-    tracker = MotorcycleTracker(max_gap=2)
+    tracker = ObjectTracker(max_gap=2)
     first = Detection((10, 10, 60, 55), "motorcycle", 0.9)
     next_frame = Detection((15, 12, 65, 57), "motorcycle", 0.88)
 
@@ -14,7 +14,7 @@ def test_tracker_keeps_id_for_a_moving_motorcycle() -> None:
 
 
 def test_tracker_assigns_a_new_id_after_a_long_disappearance() -> None:
-    tracker = MotorcycleTracker(max_gap=1)
+    tracker = ObjectTracker(max_gap=1)
     first = Detection((10, 10, 60, 55), "motorcycle", 0.9)
     later = Detection((10, 10, 60, 55), "motorcycle", 0.9)
 

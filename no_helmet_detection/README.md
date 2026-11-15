@@ -2,7 +2,9 @@
 
 This standalone Python project processes CCTV video, detects helmet/no-helmet head regions, associates a no-helmet rider with a tracked motorcycle, detects its number plate, and reads plate text with OCR. A violation is reported only after repeated frame evidence. It writes an annotated MP4, a CSV event list, and a JSON report.
 
-Association uses person/head overlap, rider-to-motorcycle overlap and foot-point proximity, then motorcycle-to-plate position. These image-space heuristics are intended for fixed-camera footage and may need tuning for a different camera angle.
+Helmet inference runs on upscaled context crops around people associated with detected motorcycles, avoiding unnecessary pedestrian crops while preserving small-head detail. The vehicle model uses overlapping quadrants on high-resolution frames to improve small motorcycle detection. A no-helmet head is reported as a confirmed violation only when it is associated with a detected, tracked motorcycle and persists across frames. Plate detection runs only when a no-helmet motorcycle candidate exists, and plate reads are associated with the tracked motorcycle when localization permits. These image-space heuristics are intended for fixed-camera footage and may need tuning for a different camera angle.
+
+Frames larger than the detector input are processed in overlapping regions to preserve more detail for distant riders and plates. This improves small-object recall at the cost of additional inference work on high-resolution footage.
 
 ## Setup (PowerShell)
 
@@ -29,14 +31,14 @@ Replace the sample path with any accessible local video file.
 
 Outputs are written to `no_helmet_detection\outputs\`:
 
-- `<video>_annotated.mp4` — red confirmed or orange pending motorcycle boxes; plate and no-helmet overlays.
+- `<video>_annotated.mp4` — green helmet, red confirmed no-helmet, orange pending violation, cyan person, blue motorcycle, and orange license-plate overlays. The frame header shows per-frame detection counts.
 - `<video>_violations.csv` — one row per confirmed motorcycle track event.
-- `<video>_violations.json` — event data, source paths, and model provenance.
+- `<video>_violations.json` — event data, detection totals and association counts, source paths, and model provenance.
 
 To display the annotated video while processing:
 
 ```powershell
-python .\no_helmet_detection\run_detection.py .\no_helmet_detection\sample_video.mp4 --show
+python .\no_helmet_detection\run_detection.py .\wrong_way_detection\backend\data\videos\traffic_short.mp4 --show
 ```
 
 Useful options:
