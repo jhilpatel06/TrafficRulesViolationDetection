@@ -1,0 +1,9 @@
+venv/
+.venv/
+__pycache__/ 
+.cache/ 
+.pytest_cache
+yolov5/
+*.pt
+experiments/
+data/
