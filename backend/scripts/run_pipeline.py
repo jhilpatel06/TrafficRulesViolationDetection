@@ -2,12 +2,12 @@
 #-------------------------------------------------------------------------------
 
 import cv2
-from pathlib import Path
 import csv
 import json
 import re
-from datetime import datetime
+from collections import Counter
 from pathlib import Path
+from datetime import datetime
 
 from src.detection.vehicle_detector import VehicleDetector
 from src.tracking.vehicle_tracker import VehicleTracker
@@ -20,9 +20,6 @@ ROOT = Path(__file__).resolve().parents[1]
 
 EXPERIMENT_DIR = ROOT / "experiments"
 CSV_PATH = EXPERIMENT_DIR / "_experiment_configs.csv"
-yolov5_repo = ROOT / "yolov5"
-weights = yolov5_repo / "my_coco.pt"
-video = load_config()["video_path"]
 
 def save_experiment_config(config):
     EXPERIMENT_DIR.mkdir(parents=True, exist_ok=True)
@@ -33,8 +30,9 @@ def save_experiment_config(config):
     }
 
     wrong_way = config["wrong_way_detector_config"]
-    detector = config["detector_config"]
-    tracker = config["tracker_config"]
+    
+    detector_config = config["detector_config"]
+    tracker_config = config["tracker_config"]
 
     record = {
         "exp_name": config.get("experiment_name", ""),
@@ -44,10 +42,10 @@ def save_experiment_config(config):
         "min_disp": wrong_way["min_displacement"],
         "dir_thresh": wrong_way["direction_threshold"],
         "req_frames": wrong_way["required_consecutive_frames"],
-        "conf": detector["confidence"],
-        "iou": detector["iou"],
-        "max_disappeared": tracker["max_disappeared"],
-        "max_distance": tracker["max_distance"],
+        "conf": detector_config["confidence"],
+        "iou": detector_config["iou"],
+        "max_disappeared": tracker_config["max_disappeared"],
+        "max_distance": tracker_config["max_distance"],
     }
 
     fieldnames = [
@@ -74,7 +72,7 @@ def save_experiment_config(config):
 
         writer.writerow(record)
 
-def get_experiment_video_path(config):
+def get_experiment_video_path(config, timestamp):
     experiment_name = config.get("experiment_name", "").strip()
 
     if not experiment_name:
@@ -89,7 +87,91 @@ def get_experiment_video_path(config):
     if not safe_name:
         safe_name = "experiment"
 
-    filename = f"{safe_name}.mp4"
+    filename = f"{timestamp}_{safe_name}.mp4"
+
+    EXPERIMENT_DIR.mkdir(parents=True, exist_ok=True)
+
+    return EXPERIMENT_DIR / filename
+
+
+def save_experiment_results(
+    config,
+    video,
+    total_frames,
+    fps,
+    class_counts,
+    tracked_ids,
+    wrong_way_ids,
+    timestamp
+):
+
+    experiment_name = config.get("experiment_name", "")
+    results = {
+        "experiment_name": experiment_name,
+
+        "video_info": {
+            "video_path": str(video),
+            "total_frames": total_frames,
+            "fps": fps
+        },
+
+        "object_detection": {
+            "total_unique_vehicles": sum(class_counts.values()),
+            "class_frequencies": dict(class_counts)
+        },
+
+        "object_tracking": {
+            "total_unique_vehicles": len(tracked_ids),
+            "track_ids": sorted(tracked_ids)
+        },
+
+        "wrong_way_detection": {
+            "total_violations": len(wrong_way_ids),
+            "violating_track_ids": sorted(wrong_way_ids)
+        }
+    }
+
+    output_path = get_experiment_results_path(config, timestamp)
+
+    with output_path.open("w", encoding="utf-8") as file:
+        json.dump(results, file, indent=4)
+
+    # Print results in terminal
+    print("\n========== EXPERIMENT RESULTS ==========")
+
+    print("\nObject Detection")
+    print("Total detections :", sum(class_counts.values()))
+    print("Class frequencies:", dict(class_counts))
+
+    print("\nObject Tracking")
+    print("Total unique vehicles:", sum(class_counts.values()))
+    print("Track IDs:", sorted(tracked_ids))
+
+    print("\nWrong-Way Detection")
+    print("Total violating vehicles:", len(wrong_way_ids))
+    print("Violating track IDs     :", sorted(wrong_way_ids))
+
+    print(f"\nResults saved to     : backend\experiments\{timestamp}_{experiment_name}_results.json")
+    print(f"Output video saved to: backend\experiments\{timestamp}_{experiment_name}.mp4")
+
+
+def get_experiment_results_path(config, timestamp):
+
+    experiment_name = config.get("experiment_name", "").strip()
+
+    if not experiment_name:
+        experiment_name = "experiment"
+
+    safe_name = re.sub(
+        r'[<>:"/\\|?*]',
+        "_",
+        experiment_name
+    ).strip(" .")
+
+    if not safe_name:
+        safe_name = "experiment"
+
+    filename = f"{timestamp}_{safe_name}_results.json"
 
     EXPERIMENT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -97,14 +179,14 @@ def get_experiment_video_path(config):
 
 def main():
 
+    video = load_config()["video_path"]
     # Load configuration once
     config = load_config()
+    timestamp = datetime.now().strftime("%y%m%d_%H%M")
 
     # Initialize YOLO model once
     detector = VehicleDetector(
-        weights=weights,
-        yolov5_repo=yolov5_repo,
-        vehicle_class_ids=None,
+        weights="yolo26n.pt",
         **config["detector_config"]
     )
 
@@ -124,7 +206,7 @@ def main():
     print(f"total frames in video: {total_frames}")
     print(f"fps: {cap.get(cv2.CAP_PROP_FPS)}")
 
-    output_video_path = get_experiment_video_path(config)
+    output_video_path = get_experiment_video_path(config, timestamp)
 
     fps = cap.get(cv2.CAP_PROP_FPS)
     if not fps or fps != fps or fps < 5 or fps > 240:
@@ -174,6 +256,12 @@ def main():
 
     current_frame = 0
     completed_successfully = False
+    # Object detection statistics
+    track_classes = {}
+    # Unique tracked vehicle IDs
+    tracked_ids = set()
+    # Unique vehicles detected moving in the wrong direction
+    wrong_way_ids = set()
 
     try:
         while True:
@@ -190,7 +278,18 @@ def main():
 
             # Stage 2: Assign persistent IDs
             tracks = tracker.update(detections)
-            wrong_way_ids = wrong_way_detector.update(tracks)
+
+            for track in tracks:
+                tracked_ids.add(track.track_id)
+
+                if track.track_id not in track_classes:
+                    track_classes[track.track_id] = track.class_name
+
+            # Get wrong-way IDs in the current frame
+            current_wrong_way_ids = wrong_way_detector.update(tracks)
+
+            # Maintain unique wrong-way vehicle IDs across the video
+            wrong_way_ids.update(current_wrong_way_ids)
 
             # # --- debug overlay (change 4) ---
             # debug_frame = wrong_way_detector.debug_visualize(
@@ -248,7 +347,23 @@ def main():
 
         # Replace your single save_experiment_config(config) line with this block:
         if completed_successfully:
+
+            class_counts = Counter(track_classes.values())
+            # Save existing experiment configuration to CSV
             save_experiment_config(config)
+
+            # Save detection, tracking and violation results to JSON
+            save_experiment_results(
+                config=config,
+                video=video,
+                total_frames=total_frames,
+                fps=fps,
+                class_counts=class_counts,
+                tracked_ids=tracked_ids,
+                wrong_way_ids=wrong_way_ids,
+                timestamp = timestamp
+            )
+
         else:
             if output_video_path.exists():
                 output_video_path.unlink()

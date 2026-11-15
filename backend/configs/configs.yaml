@@ -32,8 +32,9 @@ wrong_way_detector_config: # dictionary of items
   required_consecutive_frames: 3
 
 detector_config:
-  confidence: 0.25
-  iou: 0.45
+  confidence: 0.3
+  iou: 0.4
+  vehicle_class_ids: [0, 1, 2, 3, 5, 7] # bicycle, car, motorcycle, bus, truck
   device: cpu # cpu/cuda
 
 tracker_config:
@@ -41,4 +42,4 @@ tracker_config:
   max_distance: 80
 
 video_path: "data/videos/traffic.mp4"
-experiment_name: "perpendicular_long_7_7_0_3"
+experiment_name: "det_c025_i04"

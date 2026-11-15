@@ -1,0 +1,79 @@
+{
+    "experiment_name": "det_i07",
+    "video_info": {
+        "video_path": "data/videos/traffic.mp4",
+        "total_frames": 309,
+        "fps": 30
+    },
+    "object_detection": {
+        "total_detections": 3101,
+        "class_frequencies": {
+            "car": 2337,
+            "bus": 646,
+            "person": 99,
+            "truck": 19
+        }
+    },
+    "object_tracking": {
+        "total_unique_vehicles": 48,
+        "track_ids": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+        ]
+    },
+    "wrong_way_detection": {
+        "total_violations": 4,
+        "violating_track_ids": [
+            7,
+            34,
+            39,
+            41
+        ]
+    }
+}
