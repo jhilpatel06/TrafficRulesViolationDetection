@@ -1,0 +1,42 @@
+{
+    "experiment_name": "t_01_30_08",
+    "video_info": {
+        "video_path": "data/videos/traffic.mp4",
+        "total_frames": 309,
+        "fps": 30
+    },
+    "object_detection": {
+        "total_unique_vehicles": 17,
+        "class_frequencies": {
+            "car": 13,
+            "bus": 3,
+            "person": 1
+        }
+    },
+    "object_tracking": {
+        "total_unique_vehicles": 17,
+        "track_ids": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+        ]
+    },
+    "wrong_way_detection": {
+        "total_violations": 0,
+        "violating_track_ids": []
+    }
+}

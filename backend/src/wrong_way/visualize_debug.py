@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 
 from src.wrong_way.lane_regions import LaneRegions
-from src.utils.helper import load_config
+from src.helper import load_config
 
 # ------------------- Helpers ---------------------------------
 def _extract_polygon(lane):
