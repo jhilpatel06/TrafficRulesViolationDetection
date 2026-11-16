@@ -1,4 +1,4 @@
-# 🚦 Wrong-Way Vehicle Detection
+# Wrong-Way Vehicle Detection
 
 Detects vehicles driving **against the permitted direction of their lane** in fixed-camera CCTV footage, using **YOLO26** detection, **ByteTrack** tracking and a custom lane-aware direction engine.
 
@@ -8,17 +8,13 @@ For every tracked vehicle, the pipeline asks one question per frame: *is this ve
 
 > **Note:** The diagram illustrates the V1 concept. The current pipeline has been upgraded to YOLO26, ByteTrack, and uses bottom-center Linear Regression.
 
-
 ## 🎬 Demo
-
 
 10-second, two-way CCTV clip with one wrong-way two-wheeler. Green = normal, yellow = outside every lane, red = wrong-way, dark-blue line = track trail.
 
 [![Output preview (click to open the full video)](demo/output_preview.gif)](demo/output.mp4)
 
-
 ![output_frame](image/README/output_frame_8s.jpg)
-
 
 ## 🔍 How It Works
 
@@ -67,7 +63,6 @@ flowchart LR
 |      −0.5      |     120°     | Exactly at the threshold                        |
 | **−1.0** |     180°     | Moving exactly against the lane → 🚨 wrong-way |
 
-
 ## 🧠 Key Engineering Decisions
 
 | Decision                                           | Why                                                                                                                                                                      |
@@ -100,7 +95,6 @@ flowchart LR
 
 The debug overlay (`debug.mp4` + `debug.csv`) was built to trace exactly these cases frame by frame.
 
-
 ## 📁 Project Structure
 
 ```text
@@ -121,7 +115,6 @@ wrong_way_detection/
 │   └── requirements.txt
 ```
 
-
 ## ⚙️ Setup
 
 ```powershell
@@ -135,7 +128,6 @@ pip install -r requirements.txt
 1. Put your footage in the input path set in `backend/configs/configs.yaml`.
 2. Make sure `yolo26s.pt` is available (Ultralytics can download it on first run).
 3. Annotate lane polygons in [CVAT](https://www.cvat.ai/) and paste their coordinates, plus each lane's permitted direction, into `configs.yaml`.
-
 
 ## ▶️ Run
 
@@ -159,14 +151,12 @@ Saved in a timestamped folder under `backend/experiments/`:
 
 > **Tip:** `.mp4` files are git-ignored. To keep the demo video in the repo, add `!demo/*.mp4` to `.gitignore`.
 
-
 ## 🚀 Future Improvements
 
 1. **Sticky lane assignment**: hold the last lane for 1–2 frames to stop edge flicker.
 2. **Merge split tracks**: re-identify the same rider after a long occlusion with appearance features.
 3. **Adaptive `min_displacement`**: derive it from camera FPS and vehicle size instead of fixed pixels.
 4. **Class-aware thresholds**: react faster for cars and buses, use a longer window for two-wheelers and pedestrians.
-
 
 ## Credits
 
@@ -175,4 +165,5 @@ Saved in a timestamped folder under `backend/experiments/`:
 - ByteTrack: Zhang et al., *ByteTrack: Multi-Object Tracking by Associating Every Detection Box*, ECCV 2022.
 
 ## Author
+
 Pallavi Raghuvanshi
