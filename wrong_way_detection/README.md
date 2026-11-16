@@ -52,7 +52,7 @@ Copy the `yolov5/` folder and `my_coco.pt` into `backend/yolov5/` (from [zillur0
 ### Run
 
 ```powershell
-cd backend
+cd wrong_way_detection.backend
 python -W ignore -m scripts.run_pipeline
 ```
 

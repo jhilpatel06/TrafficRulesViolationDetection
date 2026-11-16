@@ -1,4 +1,4 @@
-# backend/configs/configs.yaml
+# backend/configs.yaml
 
 lane_directions:
   frame_width: 1280
@@ -47,5 +47,5 @@ tracker_config:
   frame_rate: 30
 
 video_path: "data/videos/traffic.mp4"
-experiment_name: "ww5_05_n04_2_sk3"
+experiment_name: "run_check"
 save_result: yes   # yes/no

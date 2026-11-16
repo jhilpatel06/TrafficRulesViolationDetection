@@ -8,8 +8,8 @@ import csv
 import cv2
 import numpy as np
 
-from wrong_way_detection.backend.src.wrong_way.lane_regions import LaneRegions
-from wrong_way_detection.backend.src.helper import load_config
+from src.wrong_way.lane_regions import LaneRegions
+from src.helper import load_config
 
 # ------------------- Helpers ---------------------------------
 def _extract_polygon(lane):

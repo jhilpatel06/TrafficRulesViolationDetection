@@ -11,10 +11,10 @@ from pathlib import Path
 from datetime import datetime
 import shutil
 
-from wrong_way_detection.backend.src.vehicle_detector import VehicleDetector
-from wrong_way_detection.backend.src.vehicle_tracker import VehicleTracker
-from wrong_way_detection.backend.src.wrong_way.wrong_way_detector import WrongWayDetector
-from wrong_way_detection.backend.src.helper import load_config
+from src.vehicle_detector import VehicleDetector
+from src.vehicle_tracker import VehicleTracker
+from src.wrong_way.wrong_way_detector import WrongWayDetector
+from src.helper import load_config
 
 
 # Project paths

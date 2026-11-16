@@ -30,9 +30,9 @@ Parameter coupling (IMPORTANT — read before tuning):
 
 import numpy as np
 
-from wrong_way_detection.backend.src.wrong_way.lane_regions import LaneRegions
-from wrong_way_detection.backend.src.wrong_way.visualize_debug import annotate_frame
-from wrong_way_detection.backend.src.helper import load_config
+from src.wrong_way.lane_regions import LaneRegions
+from src.wrong_way.visualize_debug import annotate_frame
+from src.helper import load_config
 
 
 def _bbox_bottom_center(bbox):
