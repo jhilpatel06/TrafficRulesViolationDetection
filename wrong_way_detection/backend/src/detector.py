@@ -1,4 +1,4 @@
-# backend/src/detection/vehicle_detector.py
+# backend/src/vehicle_detector.py
 # --------------------------------------------------------------------------------
 # loads YOLOv5 weights and returns vehicle detections in a predictable format.
 

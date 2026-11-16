@@ -1,4 +1,4 @@
-# backend/src/tracking/vehicle_tracker.py
+# backend/src/vehicle_tracker.py
 #--------------------------------------------------------------------------------
 # assigns a persistent ID by matching the centroids of current detections with those from the previous frame.
 

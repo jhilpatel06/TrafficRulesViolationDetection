@@ -11,8 +11,8 @@ from pathlib import Path
 from datetime import datetime
 import shutil
 
-from src.vehicle_detector import VehicleDetector
-from src.vehicle_tracker import VehicleTracker
+from wrong_way_detection.backend.src.detector import VehicleDetector
+from wrong_way_detection.backend.src.tracker import VehicleTracker
 from src.wrong_way.wrong_way_detector import WrongWayDetector
 from src.helper import load_config
 
