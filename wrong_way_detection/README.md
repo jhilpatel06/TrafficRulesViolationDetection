@@ -8,7 +8,6 @@ For every tracked vehicle, the pipeline asks one question per frame: *is this ve
 
 > **Note:** The diagram illustrates the V1 concept. The current pipeline has been upgraded to YOLO26, ByteTrack, and uses bottom-center Linear Regression.
 
----
 
 ## 🎬 Demo
 
@@ -17,7 +16,8 @@ For every tracked vehicle, the pipeline asks one question per frame: *is this ve
 
 [![Output preview (click to open the full video)](demo/output_preview.gif)](demo/output.mp4)
 
-<pre class="vditor-reset" placeholder="" contenteditable="true" spellcheck="false"><p data-block="0"><img src="https://file+.vscode-resource.vscode-cdn.net/c%3A/Project/Traffic%20Rules%20Violation%20Detection/TrafficRulesViolationDetection/wrong_way_detection/image/README/output_frame_8s.jpg" alt="Output frame at 8 s"/></p></pre>
+
+![output_frame](image/README/output_frame_8s.jpg)
 
 
 ## 🔍 How It Works
@@ -67,7 +67,6 @@ flowchart LR
 |      −0.5      |     120°     | Exactly at the threshold                        |
 | **−1.0** |     180°     | Moving exactly against the lane → 🚨 wrong-way |
 
----
 
 ## 🧠 Key Engineering Decisions
 
@@ -101,7 +100,6 @@ flowchart LR
 
 The debug overlay (`debug.mp4` + `debug.csv`) was built to trace exactly these cases frame by frame.
 
----
 
 ## 📁 Project Structure
 
@@ -123,21 +121,21 @@ wrong_way_detection/
 │   └── requirements.txt
 ```
 
----
 
 ## ⚙️ Setup
 
 ```powershell
-git clone <your-repo-url>
+git clone https://github.com/jhilpatel06/TrafficRulesViolationDetection.git
 cd wrong_way_detection
 py -m venv .venv
 .venv\Scripts\Activate
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 ```
 
 1. Put your footage in the input path set in `backend/configs/configs.yaml`.
 2. Make sure `yolo26s.pt` is available (Ultralytics can download it on first run).
 3. Annotate lane polygons in [CVAT](https://www.cvat.ai/) and paste their coordinates, plus each lane's permitted direction, into `configs.yaml`.
+
 
 ## ▶️ Run
 
@@ -161,7 +159,6 @@ Saved in a timestamped folder under `backend/experiments/`:
 
 > **Tip:** `.mp4` files are git-ignored. To keep the demo video in the repo, add `!demo/*.mp4` to `.gitignore`.
 
----
 
 ## 🚀 Future Improvements
 
@@ -170,10 +167,12 @@ Saved in a timestamped folder under `backend/experiments/`:
 3. **Adaptive `min_displacement`**: derive it from camera FPS and vehicle size instead of fixed pixels.
 4. **Class-aware thresholds**: react faster for cars and buses, use a longer window for two-wheelers and pedestrians.
 
----
 
-## 🙏 Credits
+## Credits
 
 - Detection and tracking foundations: Rahman, Ami & Ullah, *A Real-Time Wrong-Way Vehicle Detection Based on YOLO and Centroid Tracking*, IEEE TENSYMP 2020 ([repo](https://github.com/zillur01/wrong-way-vehicle-detection)). All lane and direction logic in this project is new.
 - [Ultralytics YOLO](https://github.com/ultralytics/ultralytics) for detection.
 - ByteTrack: Zhang et al., *ByteTrack: Multi-Object Tracking by Associating Every Detection Box*, ECCV 2022.
+
+## Author
+Pallavi Raghuvanshi
