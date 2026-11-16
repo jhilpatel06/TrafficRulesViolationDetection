@@ -1,3 +1,4 @@
+<<<<<<<< HEAD:wrong_way_detection/README.md
 # Wrong-Way Vehicle Detection
 
 ## Project Brief
@@ -186,3 +187,6 @@ python -W ignore -m scripts.run_pipeline
 2. **Merge split tracks** — track 24 → 33 is the same physical rider. Incorporate appearance features or a short coasting window (`max_disappeared` 10 → 20) to reduce split IDs.
 3. **Adaptive `min_displacement`** — derive the threshold from camera FPS and known vehicle lengths instead of hardcoding pixels, so the pipeline is portable across resolutions.
 4. **Class-aware thresholds** — allow faster reactions for vehicles (cars, buses) while giving two-wheelers and pedestrians a longer window, instead of one global `min_displacement`.
+========
+# Traffic Rules Violation Detection Using Computer Vision
+>>>>>>>> 81446e36bf0cb4f2044ffb9a5d5fee7ef1df0fb0:README.md
