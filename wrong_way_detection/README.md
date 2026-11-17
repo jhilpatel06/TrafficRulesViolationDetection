@@ -1,4 +1,4 @@
-# Wrong-Way Vehicle Detection
+# ong-Way Vehicle Detection
 
 Detects vehicles driving **against the permitted direction of their lane** in fixed-camera CCTV footage, using **YOLO26** detection, **ByteTrack** tracking and a custom lane-aware direction engine.
 
@@ -8,14 +8,13 @@ For every tracked vehicle, the pipeline asks one question per frame: *is this ve
 
 > **Note:** The diagram illustrates the V1 concept. The current pipeline has been upgraded to YOLO26, ByteTrack, and uses bottom-center Linear Regression.
 
-## 🎬 Demo
+## 🎬 Output files
 
 10-second, two-way CCTV clip with one wrong-way two-wheeler. Green = normal, yellow = outside every lane, red = wrong-way, dark-blue line = track trail.
 
-
 [![Output preview (click to open the full video)](demo/output_gif.gif)](demo/output.mp4)
 
-![output_frame](image/README/output_frame_8s.png)
+![output_frame](image/README/output_vs_debug.jpg)
 
 ## 🔍 How It Works
 
