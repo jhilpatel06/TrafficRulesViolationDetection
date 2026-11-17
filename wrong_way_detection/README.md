@@ -12,9 +12,10 @@ For every tracked vehicle, the pipeline asks one question per frame: *is this ve
 
 10-second, two-way CCTV clip with one wrong-way two-wheeler. Green = normal, yellow = outside every lane, red = wrong-way, dark-blue line = track trail.
 
-[![Output preview (click to open the full video)](demo/output_preview.gif)](demo/output.mp4)
 
-![output_frame](image/README/output_frame_8s.jpg)
+[![Output preview (click to open the full video)](demo/output_gif.gif)](demo/output.mp4)
+
+![output_frame](image/README/output_frame_8s.png)
 
 ## 🔍 How It Works
 

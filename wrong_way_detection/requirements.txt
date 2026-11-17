@@ -17,3 +17,4 @@ seaborn
 ruamel.yaml
 supervision<0.31 # since ByteTrack is removed in 0.31 version
 trackers
+imagio
