@@ -1,4 +1,4 @@
-# Wrong-Way Vehicle Detection
+# Wrong-Way Driving Detection
 
 Detects vehicles driving **against the permitted direction of their lane** in fixed-camera CCTV footage, using **YOLO26** detection, **ByteTrack** tracking and a custom lane-aware direction engine.
 
