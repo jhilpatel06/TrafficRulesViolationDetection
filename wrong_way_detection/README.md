@@ -143,12 +143,12 @@ Run the tests with `pytest` from the `backend/` folder.
 
 Saved in a timestamped folder under `backend/experiments/`:
 
-| File             | Purpose                                                                      |
-| ---------------- | ---------------------------------------------------------------------------- |
-| `output.mp4`   | Annotated video: green / red / yellow boxes with dark-blue trajectory trails |
-| `debug.mp4`    | Overlay with lane polygons and track IDs                                     |
-| `debug.csv`    | Frame-by-frame track data (bbox, anchor, lane membership)                    |
-| `results.json` | Experiment summary                                                           |
+| File             | Purpose                                                                    |
+| ---------------- | -------------------------------------------------------------------------- |
+| `output.mp4`   | Annotated video: green / red boxes                                         |
+| `debug.mp4`    | Overlay with lane polygons and track IDs with dark-blue trajectory trails |
+| `debug.csv`    | Frame-by-frame track data (bbox, anchor, lane membership)                  |
+| `results.json` | Experiment summary                                                         |
 
 > **Tip:** `.mp4` files are git-ignored. To keep the demo video in the repo, add `!demo/*.mp4` to `.gitignore`.
 
