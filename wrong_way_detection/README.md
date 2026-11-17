@@ -8,13 +8,9 @@ For every tracked vehicle, the pipeline asks one question per frame: *is this ve
 
 > **Note:** The diagram illustrates the V1 concept. The current pipeline has been upgraded to YOLO26, ByteTrack, and uses bottom-center Linear Regression.
 
-## 🎬 Output files
+## Output Demo
 
-10-second, two-way CCTV clip with one wrong-way two-wheeler. Green = normal, yellow = outside every lane, red = wrong-way, dark-blue line = track trail.
-
-[![Output preview (click to open the full video)](demo/output_gif.gif)](demo/output.mp4)
-
-![output_frame](image/README/output_vs_debug.jpg)
+[![Output preview (click to open the full video)](https://file+.vscode-resource.vscode-cdn.net/c%3A/Project/Traffic%20Rules%20Violation%20Detection/TrafficRulesViolationDetection/wrong_way_detection/demo/output_gif.gif)](https://file+.vscode-resource.vscode-cdn.net/c%3A/Project/Traffic%20Rules%20Violation%20Detection/TrafficRulesViolationDetection/wrong_way_detection/demo/output.mp4)
 
 ## 🔍 How It Works
 
@@ -148,6 +144,12 @@ Saved in a timestamped folder under `backend/experiments/`:
 | `debug.mp4`    | Overlay with lane polygons and track IDs with dark-blue trajectory trails |
 | `debug.csv`    | Frame-by-frame track data (bbox, anchor, lane membership)                  |
 | `results.json` | Experiment summary                                                         |
+
+## 🎬 Output files
+
+10-second, two-way CCTV clip with one wrong-way two-wheeler. Green = normal, yellow = outside every lane, red = wrong-way, dark-blue line = track trail.
+
+![output_frame](image/README/output_vs_debug.jpg)
 
 ## 🚀 Future Improvements
 
