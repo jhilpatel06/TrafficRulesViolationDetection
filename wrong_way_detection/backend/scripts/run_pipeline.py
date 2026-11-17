@@ -11,8 +11,8 @@ from pathlib import Path
 from datetime import datetime
 import shutil
 
-from wrong_way_detection.backend.src.detector import VehicleDetector
-from wrong_way_detection.backend.src.tracker import VehicleTracker
+from src.detector import VehicleDetector
+from src.tracker import VehicleTracker
 from src.wrong_way.wrong_way_detector import WrongWayDetector
 from src.helper import load_config
 
@@ -258,22 +258,31 @@ def main():
                 current_wrong_way_ids = wrong_way_detector.update(valid_tracks, frame_skip=frame_skip)
                 wrong_way_ids.update(current_wrong_way_ids)
 
-                # Debug overlay
+                                # Debug overlay
                 if debug_writer is not None:
                     debug_frame = wrong_way_detector.debug_visualize(
                         frame, valid_tracks, frame_idx=current_frame, csv_rows=debug_csv_rows
                     )
+                    
+                    # Create overlay for debug trails
+                    debug_overlay = debug_frame.copy()
+
                     for track in valid_tracks:
                         if hasattr(track, 'history') and len(track.history) > 1:
-                            path_color = (139, 0, 0) # BGR for Dark Blue
+                            dark_blue = (139, 0, 0)
                             points = np.array(track.history, dtype=np.int32).reshape((-1, 1, 2))
-                            cv2.polylines(debug_frame, [points], isClosed=False, color=path_color, thickness=2)
-                            cv2.circle(debug_frame, (int(track.history[-1][0]), int(track.history[-1][1])), 3, path_color, -1)
-
+                            # Draw on debug overlay
+                            cv2.polylines(debug_overlay, [points], isClosed=False, color=dark_blue, thickness=3)
+                            cv2.circle(debug_overlay, (int(track.history[-1][0]), int(track.history[-1][1])), 4, dark_blue, -1)
+                    
+                    # Blend debug overlay
+                    cv2.addWeighted(debug_overlay, 0.6, debug_frame, 0.4, 0, debug_frame)
                     debug_writer.write(debug_frame)
 
-            # --- RENDER BLOCK (Runs every frame) ---
-            # On skipped frames, this uses `last_valid_tracks` from the last processed frame.
+                        # --- RENDER BLOCK (Runs every frame) ---
+            # Create a transparent overlay for the trails
+            overlay = frame.copy()
+
             for track in last_valid_tracks:
                 x1, y1, x2, y2 = map(int, track.bbox)
                 is_in_lane = wrong_way_detector.lane_regions.get_lane(track.bbox) is not None
@@ -281,28 +290,45 @@ def main():
                 if track.track_id in wrong_way_ids:
                     color = (0, 0, 255)
                     label = f"ID: {track.track_id} | WRONG WAY"
+                    box_thickness = 5
+                    font_scale = 1.2
+                    text_thickness = 4
                 elif is_in_lane:
                     color = (0, 255, 0)
                     label = f"ID: {track.track_id}"
+                    box_thickness = 2
+                    font_scale = 0.6
+                    text_thickness = 2
                 else:
                     color = (0, 255, 255)
                     label = f"ID: {track.track_id} | OUT OF LANE"
+                    box_thickness = 2
+                    font_scale = 0.6
+                    text_thickness = 2
 
+                # --- Draw Trailing Path on the OVERLAY ---
                 if hasattr(track, 'history') and len(track.history) > 1:
-                    # Convert history to a format OpenCV understands: [[[x, y]], [[x, y]]]
+                    dark_blue = (139, 0, 0) # BGR for Dark Blue
                     points = np.array(track.history, dtype=np.int32).reshape((-1, 1, 2))
                     
-                    # Draw the line (thickness 2)
-                    path_color = (255, 0, 0)
-                    cv2.polylines(frame, [points], isClosed=False, color=path_color, thickness=2)
-                    
-                    # Draw a dot at the current position
-                    cv2.circle(frame, (int(track.history[-1][0]), int(track.history[-1][1])), 3, color, -1)
+                    # Draw trail and dot on the overlay, NOT the main frame
+                    cv2.polylines(overlay, [points], isClosed=False, color=dark_blue, thickness=3)
+                    cv2.circle(overlay, (int(track.history[-1][0]), int(track.history[-1][1])), 4, dark_blue, -1)
 
-                # Draw bounding box and label
-                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                # --- Draw Bounding Box on main frame (Opaque) ---
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color, box_thickness)
+                
+                # Draw Text
+                if track.track_id in wrong_way_ids:
+                    (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_thickness)
+                    cv2.rectangle(frame, (x1, y1 - 30), (x1 + w, y1), color, -1)
+                    cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), text_thickness)
+                else:
+                    cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, text_thickness)
 
+            # --- Blend the overlay to apply transparency ---
+            # alpha = 0.6 (overlay weight), beta = 0.4 (original frame weight)
+            cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
 
             cv2.imshow("Vehicle Detection and Tracking", frame)
             

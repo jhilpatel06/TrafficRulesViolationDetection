@@ -34,6 +34,7 @@ wrong_way_detector_config: # dictionary of items
 detector_config:
   confidence: 0.25
   iou: 0.45
+  imgsz: 1280
   device: cpu # cpu/cuda
 
 tracker_config:

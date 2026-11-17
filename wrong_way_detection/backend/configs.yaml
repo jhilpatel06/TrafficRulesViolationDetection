@@ -48,4 +48,4 @@ tracker_config:
 
 video_path: "data/videos/traffic.mp4"
 experiment_name: "run_check"
-save_result: yes   # yes/no
+save_result: no   # yes/no

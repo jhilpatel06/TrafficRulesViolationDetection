@@ -35,7 +35,7 @@ class VehicleDetector:
             raise FileNotFoundError(f"Weights not found: {weights}")
 
         self.model = torch.hub.load(
-            str(repo_path),
+            yolo26n.pt,
             "custom",
             path=weights,
             source="local",
