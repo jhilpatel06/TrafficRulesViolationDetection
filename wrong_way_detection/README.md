@@ -150,8 +150,6 @@ Saved in a timestamped folder under `backend/experiments/`:
 | `debug.csv`    | Frame-by-frame track data (bbox, anchor, lane membership)                  |
 | `results.json` | Experiment summary                                                         |
 
-> **Tip:** `.mp4` files are git-ignored. To keep the demo video in the repo, add `!demo/*.mp4` to `.gitignore`.
-
 ## 🚀 Future Improvements
 
 1. **Sticky lane assignment**: hold the last lane for 1–2 frames to stop edge flicker.
