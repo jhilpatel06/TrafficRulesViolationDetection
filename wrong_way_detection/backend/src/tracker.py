@@ -1,149 +1,96 @@
-# backend/src/vehicle_tracker.py
-#--------------------------------------------------------------------------------
-# assigns a persistent ID by matching the centroids of current detections with those from the previous frame.
-
-from dataclasses import dataclass, field
+# backend/src/tracking/vehicle_tracker.py
 
 import numpy as np
-from scipy.spatial.distance import cdist
-from scipy.optimize import linear_sum_assignment
+import supervision as sv
+from collections import deque
+from trackers import ByteTrackTracker
 
 
-@dataclass
 class Track:
-    track_id: int
-    bbox: tuple
-    centroid: tuple
-    class_id: int
-    class_name: str
-    confidence: float
-    disappeared: int = 0
-    history: list = field(default_factory=list)
+    """Lightweight container so run_pipeline stays unchanged."""
+    # Added "history" to slots
+    __slots__ = ("track_id", "bbox", "class_name", "confidence", "history")
+
+    def __init__(self, track_id, bbox, class_name, confidence=1.0, history=None):
+        self.track_id = track_id
+        self.bbox = bbox                 # (x1, y1, x2, y2)
+        self.class_name = class_name
+        self.confidence = confidence
+        # Store as a tuple so it's immutable once passed to the pipeline
+        self.history = history if history is not None else ()
 
 
 class VehicleTracker:
     def __init__(
         self,
-        max_disappeared: int = 10,
-        max_distance: float = 80.0,
+        max_disappeared: int = 30,
+        max_distance: float = 0.5,
+        track_activation_threshold: float = 0.25,
+        minimum_consecutive_frames: int = 1,
+        **kwargs,
     ):
-        self.next_track_id = 0
-        self.tracks = {}
-
-        self.max_disappeared = max_disappeared
-        self.max_distance = max_distance
+        # ByteTrackTracker accepts sv.Detections via update()
+        self.tracker = ByteTrackTracker(
+            track_activation_threshold=track_activation_threshold,
+            minimum_consecutive_frames=minimum_consecutive_frames,
+        )
+        
+        # NEW: Dictionary to store centroid histories per track ID
+        self._histories = {}
+        # Keep last 15 frames (~0.5 second at 30fps)
+        self._max_history_len = 15
 
     @staticmethod
-    def _get_centroid(bbox):
-        x1, _, x2, y2 = bbox
-
-        return (
-            int((x1 + x2) / 2),
-            int(y2),
+    def _to_sv_detections(detections):
+        if not detections:
+            return sv.Detections.empty()
+        return sv.Detections(
+            xyxy=np.array([d["bbox"] for d in detections], dtype=np.float32),
+            confidence=np.array([d["confidence"] for d in detections], dtype=np.float32),
+            class_id=np.array([d["class_id"] for d in detections], dtype=np.int32),
+            data={"class_name": np.array([d["class_name"] for d in detections])},
         )
-
-    def _register(self, detection):
-        bbox = detection["bbox"]
-        centroid = self._get_centroid(bbox)
-
-        track = Track(
-            track_id=self.next_track_id,
-            bbox=bbox,
-            centroid=centroid,
-            class_id=detection["class_id"],
-            class_name=detection["class_name"],
-            confidence=detection["confidence"],
-            history=[centroid],
-        )
-
-        self.tracks[self.next_track_id] = track
-        self.next_track_id += 1
-
-    def _deregister(self, track_id):
-        del self.tracks[track_id]
 
     def update(self, detections):
-        """
-        Input: detections returned by VehicleDetector.detect()
+        sv_dets = self._to_sv_detections(detections)
+        tracked = self.tracker.update(sv_dets)
 
-        Output: currently active Track objects.
-        """
+        if tracked is None or len(tracked) == 0:
+            return []
 
-        # No detections in this frame
-        if len(detections) == 0:
-            for track_id in list(self.tracks.keys()):
-                self.tracks[track_id].disappeared += 1
+        results = []
+        active_ids = set()
 
-                if (
-                    self.tracks[track_id].disappeared
-                    > self.max_disappeared
-                ):
-                    self._deregister(track_id)
-
-            return list(self.tracks.values())
-
-        # No existing tracks: register all detections
-        if len(self.tracks) == 0:
-            for detection in detections:
-                self._register(detection)
-
-            return list(self.tracks.values())
-
-        track_ids = list(self.tracks.keys())
-
-        old_centroids = np.array([
-            self.tracks[track_id].centroid
-            for track_id in track_ids
-        ])
-
-        new_centroids = np.array([
-            self._get_centroid(detection["bbox"])
-            for detection in detections
-        ])
-
-        distances = cdist(old_centroids, new_centroids)
-
-        rows, cols = linear_sum_assignment(distances)
-
-        matched_tracks = set()
-        matched_detections = set()
-
-        # Match existing tracks with new detections
-        for row, col in zip(rows, cols):
-            if distances[row, col] > self.max_distance:
+        for i in range(len(tracked)):
+            track_id = int(tracked.tracker_id[i])
+            if track_id < 0:            
                 continue
+                
+            active_ids.add(track_id)
+            x1, y1, x2, y2 = map(int, tracked.xyxy[i].tolist())
+            
+            # Calculate bottom-center instead of centroid
+            bx = (x1 + x2) / 2.0
+            by = y2
+            
+            if track_id not in self._histories:
+                self._histories[track_id] = deque(maxlen=self._max_history_len)
+            
+            self._histories[track_id].append((bx, by))
+            
+            results.append(
+                Track(
+                    track_id=track_id,
+                    bbox=(x1, y1, x2, y2),
+                    class_name=str(tracked.data["class_name"][i]),
+                    history=tuple(self._histories[track_id]) # NEW: Pass the trail
+                )
+            )
+            
+        # Optional cleanup: clear history for tracks that disappeared
+        # (ByteTrack keeps lost tracks internally, but we only need trails for active ones on screen)
+        for old_id in list(self._histories.keys()):
+            if old_id not in active_ids:
+                del self._histories[old_id]
 
-            track_id = track_ids[row]
-            detection = detections[col]
-            track = self.tracks[track_id]
-
-            centroid = self._get_centroid(detection["bbox"])
-
-            track.bbox = detection["bbox"]
-            track.centroid = centroid
-            track.class_id = detection["class_id"]
-            track.class_name = detection["class_name"]
-            track.confidence = detection["confidence"]
-            track.disappeared = 0
-            track.history.append(centroid)
-
-            matched_tracks.add(track_id)
-            matched_detections.add(col)
-
-        # Unmatched existing tracks
-        for track_id in track_ids:
-            if track_id not in matched_tracks:
-                self.tracks[track_id].disappeared += 1
-
-                if (
-                    self.tracks[track_id].disappeared
-                    > self.max_disappeared
-                ):
-                    self._deregister(track_id)
-
-        # Unmatched detections become new tracks
-        for index, detection in enumerate(detections):
-            if index not in matched_detections:
-                self._register(detection)
-
-        return list(self.tracks.values())
+        return results

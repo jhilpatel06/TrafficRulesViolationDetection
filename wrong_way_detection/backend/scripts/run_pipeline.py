@@ -140,7 +140,7 @@ def save_experiment_results(
     print("Violating track IDs     :", sorted(wrong_way_ids))
 
     if save_files:
-        print(f"\nAll results saved to folder: backend\experiments\{experiment_name}")
+        print(f"\nAll results saved to folder: {exp_dir}")
     else:
         print("\n[save_result=false] Files were not written to disk.")
 
@@ -160,7 +160,7 @@ def main():
         frame_skip = 1
 
     # Initialization
-    detector = VehicleDetector(weights="yolo26s.pt", **detector_config)
+    detector = VehicleDetector(**detector_config)
     tracker = VehicleTracker(**config["tracker_config"])
     wrong_way_detector = WrongWayDetector(**config["wrong_way_detector_config"])
 
@@ -254,82 +254,82 @@ def main():
                     if track.track_id not in track_classes:
                         track_classes[track.track_id] = track.class_name
 
-                # Update wrong-way logic (Pass frame_skip to adjust velocity)
-                current_wrong_way_ids = wrong_way_detector.update(valid_tracks, frame_skip=frame_skip)
-                wrong_way_ids.update(current_wrong_way_ids)
+            current_wrong_way_ids = wrong_way_detector.update(valid_tracks, frame_skip=frame_skip)
+            wrong_way_ids.update(current_wrong_way_ids)
 
-                                # Debug overlay
+             # Debug video / CSV (only when saving)
+            if save_result and writer is not None:
+
+                # Debug overlay (Runs only on inference frames)
                 if debug_writer is not None:
                     debug_frame = wrong_way_detector.debug_visualize(
                         frame, valid_tracks, frame_idx=current_frame, csv_rows=debug_csv_rows
                     )
                     
-                    # Create overlay for debug trails
+                    # --- Transparent Trails for Debug Video ---
                     debug_overlay = debug_frame.copy()
-
                     for track in valid_tracks:
                         if hasattr(track, 'history') and len(track.history) > 1:
-                            dark_blue = (139, 0, 0)
+                            path_color = (139, 0, 0) # Dark Blue
                             points = np.array(track.history, dtype=np.int32).reshape((-1, 1, 2))
-                            # Draw on debug overlay
-                            cv2.polylines(debug_overlay, [points], isClosed=False, color=dark_blue, thickness=3)
-                            cv2.circle(debug_overlay, (int(track.history[-1][0]), int(track.history[-1][1])), 4, dark_blue, -1)
+                            cv2.polylines(debug_overlay, [points], isClosed=False, color=path_color, thickness=2)
+                            cv2.circle(debug_overlay, (int(track.history[-1][0]), int(track.history[-1][1])), 3, path_color, -1)
                     
-                    # Blend debug overlay
-                    cv2.addWeighted(debug_overlay, 0.6, debug_frame, 0.4, 0, debug_frame)
+                    # Blend debug trails (0.5 overlay, 0.5 original)
+                    cv2.addWeighted(debug_overlay, 0.5, debug_frame, 0.5, 0, debug_frame)
                     debug_writer.write(debug_frame)
 
-                        # --- RENDER BLOCK (Runs every frame) ---
-            # Create a transparent overlay for the trails
-            overlay = frame.copy()
+            # --- RENDER BLOCK (Runs every frame) ---
 
-            for track in last_valid_tracks:
+            # Only vehicles whose anchor lies inside a lane get annotated in the main output.
+            # (Everything else still appears in the debug video.)
+            # A vehicle already flagged wrong-way stays visible even if its anchor briefly leaves the lane.
+            visible_tracks = [
+                t for t in last_valid_tracks
+                if t.track_id in wrong_way_ids
+                or wrong_way_detector.lane_regions.get_lane(t.bbox) is not None
+            ]
+
+            # # 1. Trails on a transparent overlay (in-lane vehicles only)
+            # trail_overlay = frame.copy()
+            # for track in visible_tracks:
+            #     if hasattr(track, "history") and len(track.history) > 1:
+            #         dark_blue = (139, 0, 0)  # BGR
+            #         points = np.array(track.history, dtype=np.int32).reshape((-1, 1, 2))
+            #         cv2.polylines(trail_overlay, [points], isClosed=False, color=dark_blue, thickness=3)
+            #         cv2.circle(trail_overlay, (int(track.history[-1][0]), int(track.history[-1][1])), 4, dark_blue, -1)
+            # cv2.addWeighted(trail_overlay, 0.6, frame, 0.4, 0, frame)
+
+            # 2. Boxes + labels on the blended frame (fully opaque): red = wrong-way, green = normal
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale, text_thickness, pad = 0.6, 2, 4
+
+            for track in visible_tracks:
                 x1, y1, x2, y2 = map(int, track.bbox)
-                is_in_lane = wrong_way_detector.lane_regions.get_lane(track.bbox) is not None
 
                 if track.track_id in wrong_way_ids:
-                    color = (0, 0, 255)
+                    color = (0, 0, 255)   # red
                     label = f"ID: {track.track_id} | WRONG WAY"
-                    box_thickness = 5
-                    font_scale = 1.2
-                    text_thickness = 4
-                elif is_in_lane:
-                    color = (0, 255, 0)
+                    box_thickness = 3
+                else:
+                    color = (0, 150, 0)   # green
                     label = f"ID: {track.track_id}"
                     box_thickness = 2
-                    font_scale = 0.6
-                    text_thickness = 2
-                else:
-                    color = (0, 255, 255)
-                    label = f"ID: {track.track_id} | OUT OF LANE"
-                    box_thickness = 2
-                    font_scale = 0.6
-                    text_thickness = 2
 
-                # --- Draw Trailing Path on the OVERLAY ---
-                if hasattr(track, 'history') and len(track.history) > 1:
-                    dark_blue = (139, 0, 0) # BGR for Dark Blue
-                    points = np.array(track.history, dtype=np.int32).reshape((-1, 1, 2))
-                    
-                    # Draw trail and dot on the overlay, NOT the main frame
-                    cv2.polylines(overlay, [points], isClosed=False, color=dark_blue, thickness=3)
-                    cv2.circle(overlay, (int(track.history[-1][0]), int(track.history[-1][1])), 4, dark_blue, -1)
-
-                # --- Draw Bounding Box on main frame (Opaque) ---
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, box_thickness)
+
+                # Label background sized from the text, text centred inside it
+                (tw, th), baseline = cv2.getTextSize(label, font, font_scale, text_thickness)
+                bg_h = th + baseline + 2 * pad
+                bg_top = y1 - bg_h
+                if bg_top < 0:            # box touches the top edge: put the label inside it
+                    bg_top = y1
+                bg_bottom = bg_top + bg_h
+
+                cv2.rectangle(frame, (x1, bg_top), (x1 + tw + 2 * pad, bg_bottom), color, -1)
+                cv2.putText(frame, label, (x1 + pad, bg_bottom - baseline - pad),
+                            font, font_scale, (255, 255, 255), text_thickness, cv2.LINE_AA)
                 
-                # Draw Text
-                if track.track_id in wrong_way_ids:
-                    (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_thickness)
-                    cv2.rectangle(frame, (x1, y1 - 30), (x1 + w, y1), color, -1)
-                    cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), text_thickness)
-                else:
-                    cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, text_thickness)
-
-            # --- Blend the overlay to apply transparency ---
-            # alpha = 0.6 (overlay weight), beta = 0.4 (original frame weight)
-            cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
-
             cv2.imshow("Vehicle Detection and Tracking", frame)
             
             if writer is not None:

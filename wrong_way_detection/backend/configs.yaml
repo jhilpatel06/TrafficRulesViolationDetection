@@ -29,7 +29,7 @@ lane_directions:
 wrong_way_detector_config: # dictionary of items
   history_window: 5
   min_displacement: 0.5
-  direction_threshold: -0.4
+  direction_threshold: -0.6
   required_consecutive_frames: 2
 
 detector_config:
@@ -46,6 +46,6 @@ tracker_config:
   minimum_matching_threshold: 0.4
   frame_rate: 30
 
-video_path: "data/videos/traffic.mp4"
-experiment_name: "run_check"
-save_result: no   # yes/no
+video_path: "data/traffic.mp4"
+experiment_name: "removed_trail"
+save_result: yes   # yes/no

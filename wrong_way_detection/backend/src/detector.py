@@ -1,56 +1,25 @@
-# backend/src/vehicle_detector.py
-# --------------------------------------------------------------------------------
-# loads YOLOv5 weights and returns vehicle detections in a predictable format.
+# backend/src/detection/vehicle_detector.py
 
-from pathlib import Path
-import torch
+from ultralytics import YOLO
 
 
 class VehicleDetector:
     def __init__(
         self,
-        weights: str,
-        yolov5_repo: str,
-        confidence: float = 0.25,
-        iou: float = 0.45,
-        image_size: int = 640,
+        confidence: float,
+        iou: float,
         vehicle_class_ids: list[int] | None = None,
         device: str = "cpu",
+        imgsz: int = 640,
     ):
-        """
-        weights: path to your trained .pt weights
-        yolov5_repo: local path to the cloned YOLOv5 repository
-        vehicle_class_ids:
-            None -> keep all classes from your model
-            COCO vehicle IDs -> [2, 3, 5, 7]
-        """
-        repo_path = Path(yolov5_repo)
 
-        if not (repo_path / "hubconf.py").exists():
-            raise FileNotFoundError(
-                f"YOLOv5 repository not found at: {repo_path}"
-            )
-
-        if not Path(weights).exists():
-            raise FileNotFoundError(f"Weights not found: {weights}")
-
-        self.model = torch.hub.load(
-            yolo26n.pt,
-            "custom",
-            path=weights,
-            source="local",
-        )
-
-        self.model.conf = confidence
-        self.model.iou = iou
-        self.model.to(device)
-
-        self.image_size = image_size
-        self.vehicle_class_ids = (
-            set(vehicle_class_ids)
-            if vehicle_class_ids is not None
-            else None
-        )
+        # Load model once during initialization
+        self.model = YOLO("yolo26s.pt")
+        self.confidence = confidence
+        self.iou = iou
+        self.device = device
+        self.vehicle_class_ids = vehicle_class_ids
+        self.imgsz = imgsz
 
     def detect(self, frame):
         """
@@ -65,27 +34,49 @@ class VehicleDetector:
             ...
         ]
         """
-        results = self.model(frame, size=self.image_size)
-        predictions = results.xyxy[0].detach().cpu().numpy()
+
+        results = self.model.predict(
+            source=frame,
+            conf=self.confidence,
+            iou=self.iou,
+            classes=self.vehicle_class_ids,
+            device=self.device,
+            imgsz=self.imgsz,
+            verbose=False
+        )
 
         detections = []
 
-        for x1, y1, x2, y2, confidence, class_id in predictions:
-            class_id = int(class_id)
+        for result in results:
 
-            if (
-                self.vehicle_class_ids is not None
-                and class_id not in self.vehicle_class_ids
-            ):
-                continue
+            for box in result.boxes:
 
-            detections.append({
-                "bbox": (
-                    int(x1), int(y1), int(x2), int(y2)
-                ),
-                "confidence": float(confidence),
-                "class_id": class_id,
-                "class_name": self.model.names[class_id],
-            })
+                x1, y1, x2, y2 = box.xyxy[0].cpu().tolist()
+
+                confidence = float(box.conf[0])
+                class_id = int(box.cls[0])
+
+                detections.append({
+                    "bbox": (
+                        int(x1),
+                        int(y1),
+                        int(x2),
+                        int(y2)
+                    ),
+                    "confidence": confidence,
+                    "class_id": class_id,
+                    "class_name": self.model.names[class_id],
+                })
 
         return detections
+
+    @property
+    def allowed_class_names(self) -> set[str]:
+        """Class-name strings corresponding to `vehicle_class_ids`.
+
+        Returns every YOLO class name if `vehicle_class_ids` is None,
+        otherwise the subset named by the config.
+        """
+        if self.vehicle_class_ids is None:
+            return set(self.model.names.values())
+        return {self.model.names[i] for i in self.vehicle_class_ids}
